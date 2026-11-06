@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>정비 지원 규칙 점검</title>
+<style>
+:root{--bg:#F3F5F8;--ink:#16202C;--muted:#5E6B7A;--ok:#2E7D4F;--bad:#B23A48;--card:#fff;--line:#D9DFE7}
+@media (prefers-color-scheme:dark){:root{--bg:#0E141C;--ink:#E8EDF3;--muted:#9AA7B6;--ok:#5CC28A;--bad:#F07A88;--card:#17202B;--line:#2A3644}}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 "Noto Sans KR","Malgun Gothic",sans-serif}
+main{max-width:640px;margin:0 auto;padding:16px;display:flex;flex-direction:column;gap:12px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px}
+h1{font-size:20px;margin:0} p{margin:4px 0;color:var(--muted)}
+input,button{font:inherit;padding:12px;border-radius:10px;border:1px solid var(--line);width:100%;box-sizing:border-box;margin-top:8px}
+button{background:#10233F;color:#fff;border:0;font-weight:800}
+li{padding:4px 0} .ok{color:var(--ok)} .bad{color:var(--bad);font-weight:800}
+#sum{font-size:18px;font-weight:900}
+</style></head><body><main>
+<h1>정비 지원 규칙 점검 (v4)</h1>
+<div class="card"><p>Firestore 규칙 v4 를 게시한 뒤 한 번 실행하세요. 시험용 날짜(2000-01-01)에만 쓰고, 실제 기록은 건드리지 않아요.</p>
+<input id="pw" type="password" placeholder="소장 계정 비밀번호 (관리자 항목 점검용)" autocomplete="current-password">
+<button id="go">점검 시작</button></div>
+<div class="card"><div id="sum">대기 중</div><ul id="out"></ul></div>
+</main>
+<script type="module">
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-app.js';
+import { getAuth, signInAnonymously, signInWithEmailAndPassword, signOut } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-auth.js';
+import { getFirestore, doc, collection, setDoc, getDoc, getDocs, deleteDoc, serverTimestamp } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js';
+const app = initializeApp({ apiKey: 'AIzaSyCyESLB9lGONuwXQUWBz6hPw09u9Zq9yFQ', authDomain: 'haeundae-rm.firebaseapp.com', projectId: 'haeundae-rm', appId: '1:468580994597:web:b2c841463ec39b577679cc' }, 'supcheck');
+const auth = getAuth(app), db = getFirestore(app);
+const D = '2000-01-01', out = document.getElementById('out');
+let pass = 0, fail = 0;
+async function t(label, want, fn) {
+  let got;
+  try { await fn(); got = true; } catch (e) { got = false; }
+  const good = got === want;
+  good ? pass++ : fail++;
+  out.insertAdjacentHTML('beforeend', '<li class="' + (good ? 'ok' : 'bad') + '">' + (good ? '✅ ' : '❌ ') + label + ' — ' + (want ? '되어야 함' : '막혀야 함') + '</li>');
+}
+const row = (tab, r, extra) => Object.assign({ tab, row: r, at: serverTimestamp(), clientAt: new Date(), uid: auth.currentUser.uid, by: '본인' }, extra || {});
+const add = data => setDoc(doc(collection(db, 'sup', D, 'rows')), data);
+document.getElementById('go').onclick = async () => {
+  out.innerHTML = ''; pass = fail = 0; document.getElementById('sum').textContent = '점검 중…';
+  await signOut(auth).catch(() => {});
+  await signInAnonymously(auth);
+  // 정비보조(익명)
+  await t('정비보조: 배정 읽기', true, () => getDoc(doc(db, 'sup', D)));
+  await t('정비보조: 기록 목록 읽기', true, () => getDocs(collection(db, 'sup', D, 'rows')));
+  await t('정비보조: 이름 목록 읽기', true, () => getDoc(doc(db, 'sup_meta', 'names')));
+  await t('정비보조: 체크 줄 쓰기', true, () => add(row('체크', [null, D, "'1201", '점검A', '점검보조', '완료', ''])));
+  await t('정비보조: 변경(가져옴) 줄 쓰기', true, () => add(row('변경', [null, D, '가져옴', '점검A', '점검보조', '', 2, '', ''])));
+  await t('정비보조: 근태(출근) 줄 쓰기', true, () => add(row('근태', [null, D, '점검보조', '출근', '더티', '', '본인', ''])));
+  await t("정비보조: '관리자 대신' 체크", false, () => add(row('체크', [null, D, "'1201", '점검A', '점검보조', '완료', '관리자 대신'])));
+  await t('정비보조: 인원추가', false, () => add(row('변경', [null, D, '인원추가', '', '가짜', '', '', '', ''])));
+  await t('정비보조: 근무종료', false, () => add(row('변경', [null, D, '근무종료', '', '점검보조', '', '', '', ''])));
+  await t("정비보조: 근태 '관리자' 입력", false, () => add(row('근태', [null, D, '점검보조', '출근', '', '', '관리자', "'09:00"])));
+  await t('정비보조: 근태 출근취소', false, () => add(row('근태', [null, D, '점검보조', '출근취소', '', '', '본인', ''])));
+  await t("정비보조: by '관리자'", false, () => add(row('체크', [null, D, "'1202", '점검A', '점검보조', '완료', ''], { by: '관리자' })));
+  await t('정비보조: 다른 날짜 칸', false, () => add(row('체크', [null, '2000-01-02', "'1201", '점검A', '점검보조', '완료', ''])));
+  await t('정비보조: 남의 uid', false, () => add(row('체크', [null, D, "'1201", '점검A', '점검보조', '완료', ''], { uid: 'someone-else' })));
+  await t('정비보조: 배정 문서 쓰기', false, () => setDoc(doc(db, 'sup', D), { plan: [] }));
+  await t('정비보조: 이름 목록 쓰기', false, () => setDoc(doc(db, 'sup_meta', 'names'), { names: [] }));
+  const mine = doc(collection(db, 'sup', D, 'rows'));
+  await t('정비보조: 내 줄 만들기', true, () => setDoc(mine, row('체크', [null, D, "'1203", '점검A', '점검보조', '완료', ''])));
+  await t('정비보조: 내 줄 고치기', false, () => setDoc(mine, row('체크', [null, D, "'1203", '점검A', '점검보조', '취소', ''])));
+  await t('정비보조: 줄 지우기', false, () => deleteDoc(mine));
+  await t('정비보조: 레포트 배정(uploads) 읽기', false, () => getDoc(doc(db, 'uploads', 'latest')));
+  // 관리자
+  const pw = document.getElementById('pw').value;
+  if (pw) {
+    try {
+      await signInWithEmailAndPassword(auth, 'unieshaeundae+admin@gmail.com', pw);
+      await t('소장: 인원추가', true, () => add(Object.assign(row('변경', [null, D, '인원추가', '', '점검추가', '', '', '', '']), { by: '관리자' })));
+      await t("소장: '관리자 대신' 체크", true, () => add(Object.assign(row('체크', [null, D, "'1201", '점검A', '점검보조', '완료', '관리자 대신']), { by: '관리자' })));
+      await t('소장: 시험 줄 지우기', true, async () => { const s = await getDocs(collection(db, 'sup', D, 'rows')); for (const d of s.docs) await deleteDoc(d.ref); });
+    } catch (e) { fail++; out.insertAdjacentHTML('beforeend', '<li class="bad">❌ 소장 로그인 실패: ' + (e.code || e.message) + '</li>'); }
+  } else out.insertAdjacentHTML('beforeend', '<li>관리자 항목은 건너뜀 (비밀번호 없음) — 시험 줄은 2000-01-01 에 남아요</li>');
+  await signOut(auth).catch(() => {});
+  document.getElementById('sum').innerHTML = fail ? '<span class="bad">❌ ' + fail + '개 실패 / ✅ ' + pass + '개</span>' : '<span class="ok">✅ 모두 통과 (' + pass + '개)</span>';
+};
+</script></body></html>
