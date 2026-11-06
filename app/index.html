@@ -3,6 +3,7 @@
 <head>
 <base target="_top">
 <meta charset="utf-8">
+<meta name="color-scheme" content="light">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>정비 지원</title>
 <meta name="description" content="정비보조 더티 지원 · 담당 메이드와 더티 객실 체크">
@@ -29,7 +30,7 @@
   --f-body:"Noto Sans KR","Apple SD Gothic Neo","Malgun Gothic",sans-serif;
   --f-num:"IBM Plex Mono",ui-monospace,Menlo,monospace;
 }
-@media (prefers-color-scheme:dark){:root{
+@media (rm-light-only){:root{
   --bg:#0E141C; --surface:#17202B; --ink:#E8EDF3; --muted:#9AA7B6; --line:#2A3644;
   --done:#5CC28A; --done-soft:#173326; --over:#E9A04B; --over-soft:#3A2A14; --navy:#0A1830; --warn:#F07A88; color-scheme:dark}}
 *{box-sizing:border-box}
@@ -231,7 +232,7 @@ main{padding:16px 16px 48px;max-width:760px;margin:0 auto;display:flex;flex-dire
 .confetti i{position:absolute;top:-12px;width:9px;height:14px;border-radius:2px;animation:fall 1.7s ease-in forwards}
 @keyframes fall{to{transform:translateY(105vh) rotate(540deg);opacity:.9}}
 @media (prefers-reduced-motion:reduce){.confetti{display:none}.thanks div{animation:none}}
-@media (prefers-color-scheme:dark){.stat .big,.sum .left .n,.floor{color:color-mix(in srgb,var(--wc) 55%,#fff)}}
+@media (rm-light-only){.stat .big,.sum .left .n,.floor{color:color-mix(in srgb,var(--wc) 55%,#fff)}}
 </style>
 <link rel="stylesheet" href="aplus.css?v=2026.11.06-3">
 </head>

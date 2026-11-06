@@ -6,7 +6,7 @@
   --shadow:0 2px 10px rgba(28,23,18,.06);
   --f-num:"Inter","Noto Sans KR",system-ui,sans-serif;
 }
-@media (prefers-color-scheme:dark){:root{
+@media (rm-light-only){:root{
   --bg:#14110E; --surface:#201B16; --ink:#EFE8E0; --muted:#B5AA9D; --line:#3A3129;
   --done:#5CC28A; --done-soft:#14281D; --navy:#C2702A; --brand:#E39A55; --tile:#2A231C; --warn:#F07A88; --shadow:none}}
 body{font-variant-numeric:tabular-nums}
@@ -52,4 +52,6 @@ body{font-variant-numeric:tabular-nums}
 .acts .go{background:var(--brand);border-color:var(--brand)}
 .card .big{font:800 26px var(--f-num)}
 .thanks div{border-radius:24px}
-@media (prefers-color-scheme:dark){.room.on{color:var(--done)}.top{background:linear-gradient(#000 0 env(safe-area-inset-top),var(--surface) 0)}}
+@media (rm-light-only){.room.on{color:var(--done)}.top{background:linear-gradient(#000 0 env(safe-area-inset-top),var(--surface) 0)}}
+
+:root{color-scheme:light}
