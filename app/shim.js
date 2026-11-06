@@ -1,13 +1,14 @@
-// shim.js — 정비 지원 Firebase 판 (2026-11-05 ⑧ 1부: 더티 체크 · 출퇴근)
+// shim.js — 정비 지원 Firebase 판 (2026-11-05 ⑧ 1부: 더티 체크 · 출퇴근 / 2026-11-06 2부: 객실 활동판)
 // 화면(Index.html)은 예전 그대로 google.script.run.함수() 를 부름 → 이 파일이 그 호출을 받아
 //   · 더티 체크·담당 변경·출퇴근 = Code.gs 원본 함수(server.js)를 휴대폰 안에서 그대로 실행
 //       그 함수들이 읽고 쓰는 시트 탭(배정·체크·변경·근태)은 Firestore 에서 받은 줄로 만든 '가짜 시트'
 //       appendRow 한 줄 = Firestore 문서 하나(sup/{날짜}/rows/{id}) → 휴대폰에 먼저 보관 → 화면 바로 반영 → 서버로
-//   · 내 근무(한 달)·월 출역표·객실 활동판 = 지금처럼 Apps Script(SupApi.gs doPost)에 물어봄
+//   · 객실 활동판(2부) = act.js 가 휴대폰 안에서 계산. 활동 = acts/{ID} 문서, 객실 체크 = acts/{ID}/marks/{객실} 문서
+//   · 내 근무(한 달)·월 출역표 = 지금처럼 Apps Script(SupFirebase.gs doPost)에 물어봄
 // 관리자 확인은 Firebase 로그인(소장·부소장 계정) + 보안 규칙. 화면의 adminTok 은 '관리자 모드' 표시용 값일 뿐
 (function () {
   'use strict';
-  var APP_VER = '2026.11.06-1';
+  var APP_VER = '2026.11.06-2';
   var TZ = 'Asia/Seoul';
   var API_URL = 'https://script.google.com/macros/s/AKfycbyPvhvScAcDfGqyxdK9pvr8vtewfjAkHsbRBiN04GCNbzE4HL_zZHODWPPb4xUHQb0LCw/exec';
   var ADMINS = { '소장': 'unieshaeundae+admin@gmail.com', '부소장': 'unieshaeundae+sub@gmail.com' };
@@ -20,7 +21,8 @@
   };
   var TABS = ['체크', '변경', '근태'];
   var LOCAL = ['getData', 'getState', 'setCheck', 'toggle', 'change', 'addWorker', 'moveMaids', 'attend', 'attEdit'];
-  var REMOTE = ['myMonth', 'monthSheet', 'actList', 'actGet', 'actMark', 'actSave', 'actStatus'];
+  var REMOTE = ['myMonth', 'monthSheet'];
+  var ACTS = ['actList', 'actGet', 'actMark', 'actSave', 'actStatus'];
 
   var S = {
     store: null, user: null, admin: false, day: '', subs: [],
@@ -92,6 +94,58 @@
   };
   var SERVER = window.makeSupServer(env);
   var TOKEN = SERVER.adminToken_();
+
+  // ---------- 객실 활동판 (2부): 활동판을 처음 열 때부터 acts 문서들을 실시간으로 받아 act.js 로 계산
+  var A = { started: false, got: false, docs: {}, marks: {}, mgot: {}, msubs: {}, waiting: [] };
+  function actStart() {
+    if (A.started || !S.store) return;
+    A.started = true;
+    S.store.listenQuery('acts', [], function (docs, meta) {
+      if (!A.got && !docs.length && meta && meta.fromCache) { cacheWait('acts', function () { A.got = true; actChanged(); }); return; }   // 휴대폰 보관함이 비어 있을 때 첫 '빈 결과'는 기다림
+      var m = {}; docs.forEach(function (d) { m[d.id] = d.data; });
+      A.docs = m; A.got = true;
+      Object.keys(m).forEach(function (id) { if (m[id] && m[id].status !== '보관') marksSub(id); });
+      actChanged();
+    }, function (e) { A.got = true; report('listen', '활동판 ' + (e && (e.code || e.message))); actChanged(); });
+  }
+  function marksSub(id) {
+    if (A.msubs[id]) return;
+    A.msubs[id] = S.store.listenQuery('acts/' + id + '/marks', [], function (docs, meta) {
+      if (!A.mgot[id] && !docs.length && meta && meta.fromCache) { cacheWait('m' + id, function () { A.mgot[id] = true; actChanged(); }); return; }
+      var m = {}; docs.forEach(function (d) { m[d.id] = d.data; });
+      A.marks[id] = m; A.mgot[id] = true; actChanged();
+    }, function (e) { A.mgot[id] = true; report('listen', '활동 체크 ' + id + ' ' + (e && (e.code || e.message))); actChanged(); });
+  }
+  var cacheTimers = {};
+  function cacheWait(k, f) { if (!cacheTimers[k]) cacheTimers[k] = setTimeout(f, 8000); }   // 인터넷이 없으면 8초 뒤 보관된 것으로 진행
+  function actReady() { return A.got && Object.keys(A.docs).every(function (id) { return !A.docs[id] || A.docs[id].status === '보관' || A.mgot[id]; }); }
+  function actChanged() { if (A.waiting.length && actReady()) { var w = A.waiting; A.waiting = []; w.forEach(function (f) { f(); }); } }
+  function actRejected(what, e) {
+    var code = String(e && (e.code || e.message) || e);
+    try { note('활동판 저장이 거절됐어요 (' + what + '). 화면을 최신으로 바꿨어요. 계속되면 관리자에게 알려 주세요.'); } catch (x) {}
+    report('reject', 'act ' + what + ' ' + code);
+  }
+  var ACT = window.makeActServer({
+    acts: function () { return Object.keys(A.docs).filter(function (k) { return A.docs[k]; }).map(function (k) { var o = { id: k }, d = A.docs[k]; for (var x in d) o[x] = d[x]; return o; }); },
+    marks: function (id) { return A.marks[id] || {}; },
+    isAdmin: function (t) { return S.admin && !!t && t === TOKEN; },
+    workerOk: function (nm) { try { var st = SERVER.state_(); return (st.workers || []).some(function (w) { return w.name === nm; }) || (st.known || []).indexOf(nm) >= 0; } catch (e) { return false; } },
+    printUrl: function (id) { return 'print.html?id=' + encodeURIComponent(id); },
+    saveMark: function (id, r, x) {
+      if (!S.user) throw new Error('아직 연결 중이에요. 잠시 뒤 다시 눌러 주세요.');
+      (A.marks[id] = A.marks[id] || {})[r] = { s: x.s, m: x.m, w: x.w, by: x.by, at: Date.now() };   // 화면에 바로 (서버 확인은 뒤에)
+      S.store.set('acts/' + id + '/marks/' + r, { s: x.s, m: x.m, w: x.w, by: x.by, at: S.store.SERVER_TIME, clientAt: new Date(), uid: S.user.uid })
+        .then(null, function (e) { actRejected(r + '호', e); });
+    },
+    saveAct: function (id, d) {
+      if (!S.user) throw new Error('아직 연결 중이에요. 잠시 뒤 다시 눌러 주세요.');
+      var doc = {}, loc = {};
+      Object.keys(d).forEach(function (k) { doc[k] = d[k]; loc[k] = d[k] instanceof Date ? d[k].getTime() : d[k]; });
+      doc.at = S.store.SERVER_TIME; doc.uid = S.user.uid;
+      A.docs[id] = loc; if (d.status !== '보관') marksSub(id);
+      S.store.set('acts/' + id, doc).then(null, function (e) { actRejected('활동 ' + (d.name || id), e); });
+    }
+  });
 
   // ---------- Firestore 줄 → 가짜 시트
   function planRows() {
@@ -179,6 +233,13 @@
     var bad = function (e) { if (fail) fail(failMsg(e)); else console.warn('[정비 지원] ' + fn + ' 실패', e); };
     if (fn === 'adminLogin') { setTimeout(function () { bad(new Error('관리자 로그인 방식이 바뀌었어요. 앱을 새로 고쳐 주세요.')); }, 0); return; }
     if (REMOTE.indexOf(fn) >= 0) { remote(fn, args).then(done, bad); return; }
+    if (ACTS.indexOf(fn) >= 0) {
+      actStart();
+      var runA = function () { setTimeout(function () { var res; try { res = clone(ACT[fn].apply(null, args)); } catch (e) { bad(e); return; } done(res); }, 0); };
+      var goA = function () { if (actReady()) runA(); else A.waiting.push(runA); };
+      if (S.ready) goA(); else S.waiting.push(goA);
+      return;
+    }
     var run = function () { setTimeout(function () { var res; try { res = clone(SERVER[fn].apply(null, args)); } catch (e) { bad(e); return; } done(res); }, 0); };
     if (S.ready) run(); else S.waiting.push(run);
   }
@@ -188,12 +249,12 @@
       withFailureHandler: function (f) { return runner(ok, f); },
       withUserObject: function () { return r; }
     };
-    LOCAL.concat(REMOTE, ['adminLogin']).forEach(function (n) { r[n] = function () { invoke(n, Array.prototype.slice.call(arguments), ok, fail); }; });
+    LOCAL.concat(REMOTE, ACTS, ['adminLogin']).forEach(function (n) { r[n] = function () { invoke(n, Array.prototype.slice.call(arguments), ok, fail); }; });
     return r;
   }
   window.google = { script: { run: runner(null, null) } };
 
-  // ---------- Apps Script 에 묻기 (SupApi.gs doPost) — 한 달 기록·출역표·활동판
+  // ---------- Apps Script 에 묻기 (SupFirebase.gs doPost) — 한 달 기록·출역표
   function timeoutFetch(url, opt, ms) {
     return new Promise(function (res, rej) {
       var t = setTimeout(function () { rej(new Error('응답이 늦어요. 인터넷 연결을 확인하고 다시 해 주세요.')); }, ms);
@@ -333,6 +394,6 @@
       });
     },
     adminOff: function () { try { S.store.signOut(); } catch (e) {} },
-    _S: S, _server: SERVER
+    _S: S, _server: SERVER, _A: A, _act: ACT
   };
 })();

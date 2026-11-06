@@ -1,0 +1,159 @@
+// act.js — 객실 활동판을 휴대폰 안에서 계산 (2026-11-06 ⑧ 2부). Activity.gs 와 같은 규칙·같은 오류 문구
+// 활동 = Firestore acts/{활동ID} 문서 하나, 객실 체크 = acts/{활동ID}/marks/{객실} 문서 하나 (같은 객실을 다시 누르면 덮어씀, 취소도 '취소' 로 남김)
+// 시트 '활동'·'활동체크' 탭은 중계(SupFirebase.gs)가 1~2분 안에 그대로 이어서 쌓음 → 시트 기록·예전 출력도 그대로
+(function (G) {
+  'use strict';
+  var TZ = 'Asia/Seoul';
+  var COLORS = { '하늘색': '#3BA7E0', '민트': '#1FB59A', '연두': '#7CB518', '주황': '#F08C00', '보라': '#8E5CD9', '분홍': '#E0559A' };
+  // 실제 객실 417실 (Activity.gs ACT_ROOMS 와 같음)
+  var ROOMS = '401 402 403 404 405 406 407 408 409 501 502 503 504 505 506 507 508 509 510 511 512 513 514 515 516 517 601 602 603 604 605 606 607 608 609 610 611 612 613 614 615 616 617 701 702 703 704 705 706 707 708 709 710 711 712 713 714 715 716 717 801 802 803 804 805 806 807 808 809 810 811 812 813 814 815 816 817 901 902 903 904 905 906 907 908 909 910 911 912 913 914 915 916 917 1001 1002 1003 1004 1005 1006 1007 1008 1009 1010 1011 1012 1013 1014 1015 1016 1017 1101 1102 1103 1104 1105 1106 1107 1108 1109 1110 1111 1112 1113 1114 1115 1116 1117 1201 1202 1203 1204 1205 1206 1207 1208 1209 1210 1211 1212 1213 1214 1215 1216 1217 1301 1302 1303 1304 1305 1306 1307 1308 1309 1310 1311 1312 1313 1314 1315 1316 1317 1401 1402 1403 1404 1405 1406 1407 1408 1409 1410 1411 1412 1413 1414 1415 1416 1417 1501 1502 1503 1504 1505 1506 1507 1508 1509 1510 1511 1512 1513 1514 1515 1516 1517 1601 1602 1603 1604 1605 1606 1607 1608 1609 1610 1611 1612 1613 1614 1615 1616 1617 1701 1702 1703 1704 1705 1706 1707 1708 1709 1710 1711 1712 1713 1714 1715 1716 1717 1801 1802 1803 1804 1805 1806 1807 1808 1809 1810 1811 1812 1813 1814 1815 1816 1817 1901 1902 1903 1904 1905 1906 1907 1908 1909 1910 1911 1912 1913 1914 1915 1916 1917 2001 2002 2003 2004 2005 2006 2007 2008 2009 2010 2011 2012 2013 2014 2015 2016 2017 2101 2102 2103 2104 2105 2106 2107 2108 2109 2110 2111 2112 2113 2114 2115 2116 2117 2201 2202 2203 2204 2205 2206 2207 2208 2209 2210 2211 2212 2213 2214 2215 2216 2217 2301 2302 2303 2304 2306 2307 2308 2309 2310 2312 2313 2314 2315 2316 2317 2401 2402 2403 2404 2406 2407 2408 2409 2410 2412 2413 2414 2415 2416 2417 2501 2502 2503 2504 2506 2507 2508 2509 2510 2512 2513 2514 2515 2516 2517 2601 2602 2603 2604 2606 2607 2608 2609 2610 2612 2613 2614 2615 2616 2617 2701 2702 2703 2704 2706 2707 2708 2709 2710 2711 2712 2801 2802 2803 2804 2806 2807 2808 2809 2810 2811 2812 2901 2907 2908 2909 2910 2911 3001 3002 3007 3008 3009 3010 3011 3101 3102 3107 3108 3109 3110 3111'.split(' ');
+  var fmtC = null;
+  function fmt(d, f) {
+    fmtC = fmtC || new Intl.DateTimeFormat('en-CA', { timeZone: TZ, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
+    var p = {}; fmtC.formatToParts(d instanceof Date ? d : new Date(d)).forEach(function (x) { p[x.type] = x.value; });
+    return f.replace('yyyy', p.year).replace('MM', p.month).replace('dd', p.day).replace('HH', p.hour).replace('mm', p.minute);
+  }
+  function today() { return fmt(new Date(), 'yyyy-MM-dd'); }
+  function iso(v) { if (v === null || v === undefined || v === '') return ''; var d = new Date(v); return isNaN(d) ? '' : d.toISOString(); }
+  function day(v) { var m = String(v || '').trim().match(/^(\d{4})\D+(\d{1,2})\D+(\d{1,2})/); return m ? m[1] + '-' + ('0' + m[2]).slice(-2) + '-' + ('0' + m[3]).slice(-2) : ''; }
+  function room(v) { var r = String(v || '').replace(/^'/, '').replace(/\.0$/, '').trim(); return ROOMS.indexOf(r) >= 0 ? r : ''; }
+  function clean(v) { return String(v || '').replace(/\s+/g, ' ').trim().slice(0, 20); }
+  function excl(s) {
+    var out = {};
+    String(s || '').split(/[,\s/]+/).filter(Boolean).forEach(function (t) {
+      var f = t.match(/^(\d{1,2})(?:[-~](\d{1,2}))?층$/);
+      if (f) { var a = Number(f[1]), b = Number(f[2] || f[1]); ROOMS.forEach(function (r) { var fl = Math.floor(Number(r) / 100); if (fl >= Math.min(a, b) && fl <= Math.max(a, b)) out[r] = 1; }); return; }
+      var r = room(t); if (r) out[r] = 1;
+    });
+    return ROOMS.filter(function (r) { return out[r]; });
+  }
+  function badExcl(text) { return String(text).split(/[,\s/]+/).filter(Boolean).filter(function (t) { return !/^\d{1,2}(?:[-~]\d{1,2})?층$/.test(t) && !room(t); }); }
+
+  /**
+   * env = { acts(): [{id, …문서}], marks(id): {객실: 문서}, isAdmin(token), workerOk(이름), saveAct(id, 문서), saveMark(id, 객실, 문서), printUrl(id) }
+   */
+  G.makeActServer = function (env) {
+    function all() {
+      return env.acts().filter(function (d) { return String(d.id).indexOf('CHECK-') !== 0; }).map(function (d) {   // 규칙 점검용 시험 활동은 안 보임
+        var st = ['진행', '끝남', '보관'].indexOf(d.status) >= 0 ? d.status : '진행';
+        return { id: d.id, made: iso(d.made), status: st, name: String(d.name || ''), color: String(d.color || ''), start: day(d.start), due: day(d.due),
+                 excl: excl(d.exclText), exclText: String(d.exclText || ''), memo: String(d.memo || ''), ended: st === '끝남' ? iso(d.ended) : '' };
+      }).filter(function (a) { return a.name; }).sort(function (a, b) { return (a.made < b.made ? -1 : a.made > b.made ? 1 : 0) || (a.id < b.id ? -1 : 1); });
+    }
+    function marksOf(id) {
+      var src = env.marks(id) || {}, out = {};
+      Object.keys(src).forEach(function (k) {
+        var r = room(k), x = src[k]; if (!r || !x) return;
+        if (x.s === '완료' || x.s === '이상') out[r] = { s: x.s, memo: String(x.m || ''), w: String(x.w || ''), at: iso(x.at), by: String(x.by || '') };
+      });
+      return out;
+    }
+    function stats(a, marks) {
+      var ex = {}; (a.excl || []).forEach(function (r) { ex[r] = 1; });
+      var done = 0, issue = 0, td = 0, t0 = today(), floors = {}, workers = {}, workersToday = {}, days = {};
+      var target = ROOMS.filter(function (r) { return !ex[r]; });
+      target.forEach(function (r) {
+        var f = Math.floor(Number(r) / 100), fo = floors[f] = floors[f] || { t: 0, d: 0, i: 0 };
+        fo.t++;
+        var m = marks[r]; if (!m) return;
+        fo.d++;
+        if (m.s === '이상') { issue++; fo.i++; } else done++;
+        var d = m.at ? fmt(new Date(m.at), 'yyyy-MM-dd') : '';
+        if (d) days[d] = (days[d] || 0) + 1;
+        if (d === t0) td++;
+        if (m.w) { workers[m.w] = (workers[m.w] || 0) + 1; if (d === t0) workersToday[m.w] = (workersToday[m.w] || 0) + 1; }
+      });
+      var n = target.length, proc = done + issue;
+      return { target: n, done: done, issue: issue, proc: proc, left: n - proc, pct: n ? Math.round(proc / n * 1000) / 10 : 0, today: td,
+               floors: floors, workers: workers, workersToday: workersToday, days: days };
+    }
+    function pub(a, marks, admin) {
+      var out = { id: a.id, name: a.name, color: a.color, hex: COLORS[a.color] || '#1FB59A', start: a.start, due: a.due, excl: a.excl, exclText: a.exclText, memo: a.memo, status: a.status, ended: a.ended || '', stats: stats(a, marks || {}) };
+      if (admin) out.printUrl = env.printUrl(a.id);
+      return out;
+    }
+    function find(id) { return all().filter(function (x) { return x.id === String(id); })[0]; }
+    function needAdmin(token) { if (!env.isAdmin(token)) throw new Error('관리자 비밀번호가 필요해요. 관리자 모드로 다시 들어와 주세요.'); }
+    function docOf(a, patch) {   // 활동 문서 전체 (수정할 때도 통째로 다시 씀)
+      var d = { name: a.name, color: a.color, start: a.start, due: a.due || '', exclText: a.exclText || '', memo: a.memo || '', status: a.status, made: a.made ? new Date(a.made) : new Date(), ended: a.ended ? new Date(a.ended) : null };
+      Object.keys(patch || {}).forEach(function (k) { d[k] = patch[k]; });
+      return d;
+    }
+
+    function actList(token) {
+      var admin = env.isAdmin(token);
+      var list = all().filter(function (a) { return admin ? a.status !== '보관' : a.status === '진행'; });
+      return { today: today(), admin: admin, rooms: ROOMS, colors: COLORS, acts: list.map(function (a) { return pub(a, marksOf(a.id), admin); }) };
+    }
+    function actGet(id, token) {
+      var admin = env.isAdmin(token), a = find(id);
+      if (!a || (a.status === '보관' && !admin)) throw new Error('활동을 찾지 못했어요. 새로고침해 주세요.');
+      if (a.status !== '진행' && !admin) throw new Error('끝난 활동이에요.');
+      var marks = marksOf(a.id), out = pub(a, marks, admin);
+      out.marks = marks; out.today = today();
+      return out;
+    }
+    function actMark(id, rm, state, memo, worker, token) {
+      var admin = env.isAdmin(token), a = find(id);
+      if (!a) throw new Error('활동을 찾지 못했어요. 새로고침해 주세요.');
+      if (a.status !== '진행') throw new Error('끝난 활동이라 체크할 수 없어요.');
+      var r = room(rm); if (!r) throw new Error('객실 번호를 확인해 주세요.');
+      if ((a.excl || []).indexOf(r) >= 0) throw new Error(r + '호는 이 활동 대상이 아니에요.');
+      if (['완료', '이상', '취소'].indexOf(state) < 0) throw new Error('체크 방법을 확인해 주세요.');
+      var nm = admin ? '관리자' : clean(worker);
+      if (!admin && (!nm || nm === '관리자' || !env.workerOk(nm))) throw new Error('NOTMINE:' + nm + ' 님은 정비보조 명단에 없어서 저장하지 않았어요.');
+      var cur = marksOf(a.id)[r];
+      var mm = state === '이상' ? String(memo || '').replace(/\s+/g, ' ').trim().slice(0, 30) : '';
+      var same = state === '취소' ? !cur : cur && cur.s === state && cur.memo === mm;
+      if (!same) env.saveMark(a.id, r, { s: state, m: mm, w: nm, by: admin ? '관리자 대신' : '본인' });
+      return actGet(a.id, token);
+    }
+    function actSave(token, x) {
+      needAdmin(token);
+      x = x || {};
+      var name = String(x.name || '').replace(/\s+/g, ' ').trim().slice(0, 40);
+      if (!name) throw new Error('활동 이름을 적어 주세요. (예: 이불장 얼룩 점검)');
+      var color = COLORS[x.color] ? x.color : '민트';
+      var start = day(x.start) || today(), due = day(x.due);
+      if (due && due < start) throw new Error('목표일이 시작일보다 빨라요.');
+      var exclText = String(x.excl || '').replace(/\s+/g, ' ').trim().slice(0, 500);
+      var bad = badExcl(exclText);
+      if (bad.length) throw new Error('제외 객실을 확인해 주세요: ' + bad.slice(0, 5).join(', ') + ' (예: 2901, 3001 또는 29-31층)');
+      var memo = String(x.memo || '').replace(/\s+/g, ' ').trim().slice(0, 100);
+      var list = all(), raw = env.acts(), id = String(x.id || ''), a;
+      if (id) {
+        a = list.filter(function (q) { return q.id === id; })[0];
+        if (!a) throw new Error('활동을 찾지 못했어요.');
+        env.saveAct(id, docOf(a, { name: name, color: color, start: start, due: due, exclText: exclText, memo: memo }));
+      } else {
+        if (list.some(function (q) { return q.status === '진행' && q.name === name; })) throw new Error("'" + name + "' 활동이 이미 진행 중이에요.");
+        var base = 'A' + today().slice(2).replace(/-/g, ''), k = 1;
+        while (raw.some(function (q) { return q.id === base + '-' + k; })) k++;
+        id = base + '-' + k;
+        env.saveAct(id, { name: name, color: color, start: start, due: due, exclText: exclText, memo: memo, status: '진행', made: new Date(), ended: null });
+      }
+      var out = actList(token); out.saved = id; return out;
+    }
+    function actStatus(token, id, kind) {
+      needAdmin(token);
+      if (['끝내기', '다시 열기', '보관'].indexOf(kind) < 0) throw new Error('처리 방법을 확인해 주세요.');
+      var a = find(id);
+      if (!a) throw new Error('활동을 찾지 못했어요.');
+      if (kind === '끝내기' && a.status !== '진행') throw new Error('진행 중인 활동만 끝낼 수 있어요.');
+      if (kind === '다시 열기' && a.status === '진행') throw new Error('이미 진행 중이에요.');
+      env.saveAct(a.id, docOf(a, kind === '끝내기' ? { status: '끝남', ended: new Date() } : kind === '다시 열기' ? { status: '진행', ended: null } : { status: '보관' }));
+      return actList(token);
+    }
+    /** 출력 페이지(print.html)에 넘길 숫자 — Activity.gs actPrintData_ 와 같은 모양 */
+    function printData(id) {
+      var a = find(id);
+      if (!a) return { err: '활동을 찾지 못했어요. 앱에서 다시 열어 주세요.' };
+      var marks = marksOf(a.id), d = pub(a, marks, false);
+      d.marks = marks; d.rooms = ROOMS; d.today = today();
+      d.asOf = fmt(new Date(), 'yyyy.MM.dd HH:mm');
+      d.endedDay = a.ended ? fmt(new Date(a.ended), 'yyyy-MM-dd') : '';
+      return { d: d };
+    }
+    return { actList: actList, actGet: actGet, actMark: actMark, actSave: actSave, actStatus: actStatus, printData: printData, rooms: ROOMS, colors: COLORS, room: room };
+  };
+})(typeof window !== 'undefined' ? window : globalThis);

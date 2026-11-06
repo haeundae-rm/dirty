@@ -244,8 +244,9 @@ main{padding:16px 16px 48px;max-width:760px;margin:0 auto;display:flex;flex-dire
 </header>
 <main id="main"><div class="notice"><strong>오늘 배정을 불러오고 있어요.</strong></div></main>
 <div id="sheet"></div>
-<script src="server.js?v=2026.11.06-1"></script>
-<script src="shim.js?v=2026.11.06-1"></script>
+<script src="server.js?v=2026.11.06-2"></script>
+<script src="act.js?v=2026.11.06-2"></script>
+<script src="shim.js?v=2026.11.06-2"></script>
 <script>
 var plan = null, checks = {}, tab = null, dlg = null, busyChg = false, pver = 0;  // pver: 담당 변경 횟수. 변경 전에 출발한 응답의 담당 정보는 버림
 var openCards = {}, openSecs = {};
@@ -1016,7 +1017,7 @@ setInterval(function(){ if (document.visibilityState === 'visible') refresh(); }
         if (!adminTok && live.length === 1) openAct(live[0].id); else { ac.stage = 'list'; draw(); }
       }, function(m){ ac.stage = 'list'; ac.err = m; ac.list = { acts: [] }; draw(); });
       if (timer) clearInterval(timer);
-      timer = setInterval(function(){ if (document.visibilityState === 'visible' && ac && ac.stage === 'map' && !ac.queue.length && !acBusy && !ac.ask) reload(); }, 20000);
+      timer = setInterval(function(){ if (document.visibilityState === 'visible' && ac && ac.stage === 'map' && !ac.queue.length && !acBusy && !ac.ask) reload(); }, 2500);
     }
     function openAct(id){
       ac.stage = 'map'; ac.cur = null; ac.err = ''; ac.pend = {}; draw();
@@ -1098,7 +1099,7 @@ setInterval(function(){ if (document.visibilityState === 'visible') refresh(); }
       h += '<div class="ac-sub">사람별 <span style="font-weight:600;color:var(--muted);font-size:12px">전체 · 오늘</span></div>'+
         (ws.length ? '<div class="ac-list">'+ws.map(function(n){ var t = (st.workersToday || {})[n] || 0; return '<div><span>'+esc(n)+'</span><span><b>'+st.workers[n]+'실</b>'+(t ? ' <span style="color:var(--done);font-weight:800">· 오늘 '+t+'</span>' : '')+'</span></div>'; }).join('')+'</div>'
           : '<p class="ac-note" style="margin:0">아직 체크한 사람이 없어요.</p>');
-      return h + '<p class="ac-note">숫자는 20초마다 새로 받아요. 출력은 위 \'도면 출력\' 버튼.</p></div>';
+      return h + '<p class="ac-note">숫자는 실시간으로 바뀌어요. 출력은 위 \'도면 출력\' 버튼.</p></div>';
     }
     function addDays(d, n){ var t = new Date(d + 'T00:00:00Z'); t.setUTCDate(t.getUTCDate() + n); return t.toISOString().slice(0, 10); }
     function mapHtml(){
@@ -1230,6 +1231,6 @@ setInterval(function(){ if (document.visibilityState === 'visible') refresh(); }
 </script>
 
 <script>SupShim.post();</script>
-<script type="module" src="boot.js?v=2026.11.06-1"></script>
+<script type="module" src="boot.js?v=2026.11.06-2"></script>
 </body>
 </html>
