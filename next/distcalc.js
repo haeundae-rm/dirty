@@ -37,12 +37,21 @@
     });
     return out;
   }
-  /** 기준표 → 배정수량별 더티. rule = { "10": 4, ... , top: 14, topVal: 11 } (top 이상은 topVal) */
+  /** 기준표 = 배정수량 4~19 칸별 더티 (엑셀 [정비 지원 안내] 와 같음, 빈칸 = 0). 예전 모양 {top, topVal}(N 이상)도 받아서 바꿈 */
+  function normRule(rule) {
+    var R = {}, r = rule || {};
+    for (var u = 4; u <= 19; u++) {
+      var v = r[String(u)];
+      if ((v === undefined || v === null || v === '') && r.top && u >= Number(r.top)) v = r.topVal;
+      R[String(u)] = Math.max(0, Number(v) || 0);
+    }
+    return R;
+  }
+  /** 배정수량 → 더티 (정수부 기준, 20개 이상은 19칸, 4개 미만은 0) */
   function ruleOf(rule, unit) {
-    var k = Math.trunc(unit);
-    if (rule && Object.prototype.hasOwnProperty.call(rule, String(k)) && rule[String(k)] !== '' && rule[String(k)] !== null) return Number(rule[String(k)]) || 0;
-    if (rule && rule.top && k >= Number(rule.top)) return Number(rule.topVal) || 0;
-    return 0;
+    var k = Math.trunc(unit), R = normRule(rule);
+    if (k < 4) return 0;
+    return R[String(Math.min(19, k))];
   }
 
   /**
@@ -63,7 +72,7 @@
     if (dupW.length) throw new Error('더티 명단에 같은 이름이 두 번 있어요: ' + dupW.join(', '));
     var both = etc.filter(function (w) { return workers.indexOf(w) >= 0; });
     if (both.length) throw new Error('더티와 기타 업무에 같이 들어간 이름: ' + both.join(', '));
-    var over = opt.over || {}, move = opt.move || {};
+    var over = opt.over || {}, move = opt.move || {}, memo = opt.memo || {};
 
     var maids = cards.map(function (c) {
       var d = ruleOf(opt.rule, c.unit);
@@ -116,14 +125,14 @@
       b.maids.forEach(function (m) { push({ d: date, w: b.name, c: b.color, m: m.name, f: floorsOf(m.rooms), n: nice(m.dirty), r: m.rooms.join(', ') }); });
     });
     pool.forEach(function (m) { push({ d: date, w: '', c: '', m: m.name, f: floorsOf(m.rooms), n: 0, r: m.rooms.join(', ') }); });
-    etc.concat(idle).forEach(function (w) { plan.push({ d: date, w: w, c: '', m: '', f: '', n: 0, r: '' }); });
+    etc.concat(idle).forEach(function (w) { plan.push({ d: date, w: w, c: '', m: '', f: String(memo[w] || '').slice(0, 30), n: 0, r: '' }); });   // 기타 업무 줄의 정비층 칸 = 비고 (예: 단체 침구)
     return {
       plan: plan, blocks: blocks, pool: pool, maids: maids, per: per, total: nice(total), warn: warn,
       etc: etc.concat(idle), roomsTotal: Object.keys(by).reduce(function (s, n) { return s + by[n].length; }, 0)
     };
   }
 
-  var api = { compute: compute, roomsByMaid: roomsByMaid, cardList: cardList, ruleOf: ruleOf, floorsOf: floorsOf, PALETTE: PALETTE };
+  var api = { compute: compute, normRule: normRule, roomsByMaid: roomsByMaid, cardList: cardList, ruleOf: ruleOf, floorsOf: floorsOf, PALETTE: PALETTE };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else G.SupDistCalc = api;
 })(typeof window !== 'undefined' ? window : globalThis);

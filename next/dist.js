@@ -5,7 +5,7 @@
 (function () {
   'use strict';
   var VER = (window.SupShim && SupShim.ver) || '';
-  var DEF_RULE = { '4': 0, '5': 0, '6': 0, '7': 0, '8': 0, '9': 0, '10': 4, '11': 6, '12': 8, '13': 10, top: 14, topVal: 11 };
+  var DEF_RULE = { '4': 0, '5': 0, '6': 0, '7': 0, '8': 0, '9': 0, '10': 4, '11': 6, '12': 8, '13': 10, '14': 11, '15': 11, '16': 11, '17': 11, '18': 11, '19': 11 };
   var K = null;   // 열려 있는 동안의 상태
 
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
@@ -29,8 +29,21 @@
       am.insertAdjacentElement('afterend', b);
     } catch (e) {}
   }
+  // 정비보조 화면: '오늘은 기타 업무예요' 안내에 관리자가 적은 비고(예: 단체 침구)를 붙임
+  function etcNote() {
+    try {
+      if (window.adminTok || !window.me || !window.SupShim || !SupShim.dist) return;
+      var d = SupShim.dist.planDoc(SupShim.dist.today());
+      var row = d && d.plan.filter(function (x) { return x && x.w === window.me && !x.m && x.f; })[0];
+      if (!row) return;
+      var n = document.querySelector('#main .notice');
+      if (!n || !/오늘은 기타 업무예요/.test(n.textContent) || n.querySelector('.dz-etc')) return;
+      var b = document.createElement('div'); b.className = 'dz-etc'; b.textContent = '📝 ' + row.f;
+      n.querySelector('strong').insertAdjacentElement('afterend', b);
+    } catch (e) {}
+  }
   var r0 = window.render;
-  window.render = function () { r0.apply(this, arguments); inject(); };
+  window.render = function () { r0.apply(this, arguments); inject(); etcNote(); };
 
   document.addEventListener('click', function (e) {
     var t = e.target.closest && e.target.closest('[data-dist]');
@@ -43,7 +56,7 @@
     if (!A || !A.isAdmin()) { alert('관리자 모드에서만 쓸 수 있어요.'); return; }
     var day = A.today();
     K = { date: day, file: '', data: null, sheet: '', sum: null, err: '', busy: false, saving: false,
-          pick: {}, order: [], rule: null, over: {}, move: {}, res: null, ruleOpen: false, done: null, extra: '' };
+          pick: {}, order: [], rule: null, memo: {}, over: {}, move: {}, res: null, ruleOpen: false, done: null, extra: '' };
     var box = document.createElement('div');
     box.className = 'dz'; box.id = 'dz';
     document.body.appendChild(box);
@@ -56,17 +69,18 @@
 
   function loadRule() {
     var local = null; try { local = JSON.parse(lsGet('dust_rule') || 'null'); } catch (e) {}
-    return api().getCfg().then(function (c) { return (c && c.rule) || local || DEF_RULE; }, function () { return local || DEF_RULE; });
+    var N = SupDistCalc.normRule;
+    return api().getCfg().then(function (c) { return N((c && c.rule) || local || DEF_RULE); }, function () { return N(local || DEF_RULE); });
   }
 
   // 명단: 오늘 출근 기록(업무) → 이 날짜에 앱으로 만든 배정 → 비움
   function prefill() {
     var A = api(), p = window.plan || {}, att = p.att || {}, prev = A.planDoc(K.date);
-    K.pick = {}; K.order = []; K.over = {}; K.move = {};
+    K.pick = {}; K.order = []; K.over = {}; K.move = {}; K.memo = {};
     if (prev && prev.meta) {
       (prev.meta.workers || []).forEach(function (n) { K.pick[n] = 'd'; K.order.push(n); });
       (prev.meta.etc || []).forEach(function (n) { if (!K.pick[n]) { K.pick[n] = 'e'; K.order.push(n); } });
-      K.over = prev.meta.over || {}; K.move = prev.meta.move || {};
+      K.over = prev.meta.over || {}; K.move = prev.meta.move || {}; K.memo = prev.meta.memo || {};
     }
     if (K.date === A.today()) Object.keys(att).forEach(function (n) {
       var a = att[n]; if (!a || !a.in || a.out || K.pick[n]) return;
@@ -90,7 +104,7 @@
     K.res = null; K.cerr = '';
     if (!K.data || !K.rule) return;
     try {
-      K.res = SupDistCalc.compute(K.data, { date: K.date, workers: workers(), etc: etcs(), rule: K.rule, over: K.over, move: K.move });
+      K.res = SupDistCalc.compute(K.data, { date: K.date, workers: workers(), etc: etcs(), rule: K.rule, over: K.over, move: K.move, memo: K.memo });
     } catch (e) { K.cerr = String(e && e.message || e); }
   }
 
@@ -124,7 +138,9 @@
       names().map(function (n) {
         var s = K.pick[n], no = s === 'd' ? ws.indexOf(n) + 1 : 0;
         return '<button data-dz="who" data-v="' + esc(n) + '" class="' + (s === 'd' ? 'd' : s === 'e' ? 'e' : '') + '">' + (s === 'd' ? '<em>' + no + '</em>🛏 ' : s === 'e' ? '🧰 ' : '') + esc(n) + '</button>';
-      }).join('') + '</div><div class="dz-add"><input data-dz="newname" maxlength="20" placeholder="새 이름" value="' + esc(K.extra) + '"><button data-dz="addname">+ 추가</button></div>' +
+      }).join('') + '</div>' + (es.length ? '<div class="dz-memo">' + es.map(function (n) {
+        return '<label><span>🧰 ' + esc(n) + '</span><input data-dz="memo" data-v="' + esc(n) + '" maxlength="30" placeholder="비고 (예: 단체 침구)" value="' + esc(K.memo[n] || '') + '"></label>';
+      }).join('') + '</div>' : '') + '<div class="dz-add"><input data-dz="newname" maxlength="20" placeholder="새 이름" value="' + esc(K.extra) + '"><button data-dz="addname">+ 추가</button></div>' +
       '<p class="dz-tip">더티 번호 순서대로 카드 앞쪽(낮은 층) 메이드부터 맡아요. 순서를 바꾸려면 빼고 다시 누르세요.</p></section>';
     // 4 기준표
     var R = K.rule || DEF_RULE;
@@ -132,9 +148,8 @@
       ' <button class="dz-link" data-dz="ruletoggle">' + (K.ruleOpen ? '닫기' : '바꾸기') + '</button></p>';
     if (K.ruleOpen) {
       h += '<div class="dz-grid">';
-      for (var u = 4; u < Number(R.top); u++) h += '<label>' + u + '개<input type="number" min="0" max="40" inputmode="numeric" data-dz="rule" data-v="' + u + '" value="' + esc(R[String(u)] == null ? 0 : R[String(u)]) + '"></label>';
-      h += '<label><span><input type="number" min="5" max="25" class="dz-top" data-dz="ruletop" value="' + esc(R.top) + '">개 이상</span><input type="number" min="0" max="40" data-dz="ruletopv" value="' + esc(R.topVal) + '"></label></div>' +
-        '<p class="dz-tip">바꾼 기준은 다음에도 그대로 써요 (소장·부소장 같이).</p>';
+      for (var u = 4; u <= 19; u++) h += '<label' + (Number(R[String(u)]) > 0 ? ' class="on"' : '') + '>' + u + '개' + (u === 19 ? ' 이상' : '') + '<input type="number" min="0" max="40" inputmode="numeric" data-dz="rule" data-v="' + u + '" value="' + esc(Number(R[String(u)]) || '') + '" placeholder="0"></label>';
+      h += '</div><p class="dz-tip">배정수량별 더티 실 수예요. 빈칸 = 더티 없음. 바꾼 기준은 다음에도 그대로 써요 (소장·부소장 같이).</p>';
     }
     h += '</section>';
     // 5 미리보기
@@ -145,10 +160,12 @@
     box.innerHTML = h;
     box.scrollTop = y;
   }
-  function ruleText(R) {
-    var parts = ['정비수 ' + R.top + '개 이상 ' + R.topVal + '실'];
-    for (var u = Number(R.top) - 1; u >= 4; u--) if (Number(R[String(u)]) > 0) parts.push(u + '개 ' + R[String(u)] + '실');
-    return parts.join(' / ');
+  // '정비수 14개 이상 11실 / 13개 10실 / …' (19개부터 같은 값이 이어지는 칸은 'N개 이상'으로 묶음)
+  function ruleText(R0) {
+    var R = SupDistCalc.normRule(R0), parts = [], u = 19, top = Number(R['19']);
+    if (top > 0) { while (u > 4 && Number(R[String(u - 1)]) === top) u--; parts.push(u + '개 이상 ' + top + '실'); u--; }
+    for (; u >= 4; u--) if (Number(R[String(u)]) > 0) parts.push(u + '개 ' + R[String(u)] + '실');
+    return parts.length ? '정비수 ' + parts.join(' / ') : '더티 지원 없음 (기준표가 비어 있어요)';
   }
   function preview() {
     if (!K.data) return '<p class="dz-tip">파일을 고르면 나와요.</p>';
@@ -202,7 +219,8 @@
     var A = api(), prev = A.planDoc(K.date);
     if (prev && !confirm(md(K.date) + ' 배정이 이미 있어요. 새 배정으로 바꿀까요?\n\n· 이미 체크한 객실 실적은 그대로 남아요\n· 넘겨받기·가져오기 같은 담당 변경은 새 배정부터 다시 시작해요')) return;
     K.saving = true; draw();
-    var meta = { workers: workers(), etc: etcs(), over: K.over, move: K.move, rule: K.rule, file: String(K.file).slice(0, 80), sheet: K.sheet };
+    var memo = {}; etcs().forEach(function (n) { if (K.memo[n]) memo[n] = String(K.memo[n]).slice(0, 30); });
+    var meta = { workers: workers(), etc: etcs(), over: K.over, move: K.move, memo: memo, rule: K.rule, file: String(K.file).slice(0, 80), sheet: K.sheet };
     A.savePlan(K.date, r.plan, meta).then(function () {
       if (!K) return;
       K.saving = false; K.done = r; draw();
@@ -266,13 +284,12 @@
       draw(); return;
     }
     if (a === 'move') { K.move[v] = t.value; draw(); return; }
-    if (a === 'rule' || a === 'ruletop' || a === 'ruletopv') {
-      var R = {}; Object.keys(K.rule || DEF_RULE).forEach(function (k) { R[k] = (K.rule || DEF_RULE)[k]; });
-      var x = Math.max(0, Math.min(40, Number(t.value) || 0));
-      if (a === 'rule') R[v] = x; else if (a === 'ruletopv') R.topVal = x;
-      else { var tp = Math.max(5, Math.min(25, Math.round(x) || 14)); for (var u = 4; u < tp; u++) if (R[String(u)] == null) R[String(u)] = 0; R.top = tp; }
+    if (a === 'rule') {
+      var R = SupDistCalc.normRule(K.rule || DEF_RULE);
+      R[v] = Math.max(0, Math.min(40, Math.round(Number(t.value) || 0)));
       K.rule = R; saveRule(); draw(); return;
     }
+    if (a === 'memo') { K.memo[v] = String(t.value || '').replace(/\s+/g, ' ').trim().slice(0, 30); draw(); return; }
   });
   document.addEventListener('input', function (e) {
     if (K && e.target.getAttribute && e.target.getAttribute('data-dz') === 'newname') K.extra = e.target.value;
@@ -307,8 +324,10 @@
     '.dz-add{display:flex;gap:8px;margin-top:10px}.dz-add input{flex:1;min-height:44px;border:1.5px solid var(--line);border-radius:12px;padding:0 12px;font:16px inherit;font-family:inherit}',
     '.dz-add button{min-height:44px;padding:0 14px;border:0;border-radius:12px;background:var(--tile,#F7F2EC);font:700 15px inherit;font-family:inherit;cursor:pointer}',
     '.dz-rule{margin:0;font-size:14.5px;line-height:1.6}.dz-link{border:0;background:none;color:var(--brand,#9A4708);font:700 14px inherit;font-family:inherit;text-decoration:underline;cursor:pointer;padding:4px}',
-    '.dz-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(92px,1fr));gap:8px;margin-top:10px}.dz-grid label{display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--muted);font-weight:700}',
-    '.dz-grid input{min-height:42px;border:1.5px solid var(--line);border-radius:10px;text-align:center;font:700 16px var(--f-num,inherit)}.dz-grid input.dz-top{width:52px;min-height:30px;font-size:14px}',
+    '.dz-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:10px}.dz-grid label{display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--muted);font-weight:700}',
+    '.dz-grid input{min-height:42px;border:1.5px solid var(--line);border-radius:10px;text-align:center;font:700 16px var(--f-num,inherit);width:100%;box-sizing:border-box}.dz-grid label.on input{border-color:var(--brand,#9A4708);background:#FDF0DC}',
+    '.dz-memo{display:flex;flex-direction:column;gap:6px;margin-top:10px}.dz-memo label{display:grid;grid-template-columns:110px 1fr;gap:8px;align-items:center;font-weight:700;font-size:14px}.dz-memo input{min-height:42px;border:1.5px solid var(--line);border-radius:10px;padding:0 10px;font:15px inherit;font-family:inherit}',
+    '.dz-etc{margin-top:6px;font-weight:700;color:#1F3B63}',
     '.dz-b{border:1.5px solid var(--line);border-left:6px solid var(--wc,#8A96A3);border-radius:14px;padding:4px 10px 6px;margin:0 0 10px}',
     '.dz-bh{display:flex;justify-content:space-between;align-items:baseline;padding:6px 0;border-bottom:1px solid var(--line);margin-bottom:4px}.dz-bh b{font-size:16px;color:var(--wc)}.dz-bh span{font-size:13.5px;color:var(--muted);font-weight:700}',
     '.dz-m{display:grid;grid-template-columns:1fr 62px 104px;gap:6px;align-items:center;padding:5px 0;border-bottom:1px dashed var(--line)}.dz-m:last-child{border-bottom:0}',
