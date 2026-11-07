@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<!-- 객실 활동판 출력 (2026-10-30 Apps Script 'ActivityPrint' → 2026-11-06 ⑧ 2부: 정비 지원 앱 옆 print.html)
+     앱에서 '🖨 도면 출력' → print.html?id=활동ID. Firestore 의 활동·체크를 받아 act.js 로 숫자를 만들고 (앱 화면과 같은 계산)
+     A4 가로 1장을 캔버스(300dpi)로 그림 → 같은 그림을 화면 미리보기 · 인쇄(PDF 저장) · PNG 저장에 씀 (셋이 항상 같은 모양) -->
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>객실 활동 진도 현황</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700;900&display=swap">
+<style>
+:root{--navy:#10233F}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:#5B6573;color:#16202C;font:15px/1.45 "Noto Sans KR","Apple SD Gothic Neo","Malgun Gothic",sans-serif}
+.bar{position:sticky;top:0;z-index:2;background:var(--navy);color:#fff;display:flex;gap:8px;align-items:center;padding:10px 12px;flex-wrap:wrap}
+.bar b{flex:1 1 180px;font-size:16px;font-weight:900;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bar button,.bar a{border:1px solid rgba(255,255,255,.4);background:transparent;color:#fff;border-radius:99px;padding:9px 14px;font:700 14px inherit;font-family:inherit;cursor:pointer;text-decoration:none;white-space:nowrap}
+.bar .pri{background:#fff;color:var(--navy);border-color:#fff}
+.bar button:disabled{opacity:.5;cursor:default}
+.wrap{padding:14px;display:flex;justify-content:center}
+#pv{width:100%;max-width:1400px;height:auto;background:#fff;box-shadow:0 8px 28px rgba(0,0,0,.35);display:block}
+.tip{color:#fff;opacity:.9;font-size:13px;text-align:center;padding:0 16px 24px;margin:0}
+.msg{max-width:520px;margin:60px auto;background:#fff;border-radius:14px;padding:22px;text-align:center;font-weight:700}
+#print{display:none}
+@page{size:A4 landscape;margin:0}
+@media print{
+  html,body{background:#fff;width:297mm;height:210mm;overflow:hidden}
+  .bar,.wrap,.tip,.msg{display:none !important}
+  #print{display:block !important}
+  #print img{display:block;width:297mm;height:209.5mm}
+}
+</style>
+</head>
+<body>
+<div class="bar" id="bar"><b id="ttl">객실 활동 진도 현황</b></div>
+<div class="wrap" id="wrap"><div class="msg" id="msg">활동 기록을 받는 중…</div></div>
+<p class="tip" id="tip" hidden></p>
+<div id="print"></div>
+<script src="act.js?v=2026.11.07-1"></script>
+<script>
+var P = null, D = null;
+var W = 3508, H = 2480, S = W / 297;   // A4 가로 300dpi, 1mm = 11.81px
+var FF = '"Noto Sans KR","Apple SD Gothic Neo","Malgun Gothic",sans-serif';
+var NAVY = '#10233F', INK = '#16202C', MUTED = '#5E6B7A', LINE = '#C9D1DB', RED = '#C62828', RED_SOFT = '#FDECEC', SOFT = '#F3F5F8';
+var LINES = 17;
+function $(s){ return document.querySelector(s); }
+function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+function dot(d){ return d ? d.replace(/-/g, '.') : ''; }
+function md(d){ if (!d) return ''; var p = d.split('-').map(Number); return p[1] + '/' + p[2]; }
+function fl(r){ return Math.floor(Number(r) / 100); }
+
+// ---------- 도면 배치 (엑셀 '객실 도면 현황표'와 같은 묶음: 1~4 | 5~6 | 7~11 + 추가칸(2712·2812) | 12~17)
+function colOf(r){ var f = fl(r), l = Number(r) % 100;
+  if (r === '3101' || r === '3001') return { c: 0, span: 2 };
+  if (r === '3102' || r === '3002') return { c: 2, span: 2 };
+  if (r === '2901') return { c: 0, span: 4 };
+  if (l === 12 && (f === 27 || f === 28)) return { c: 11, span: 1 };
+  return { c: l <= 11 ? l - 1 : l, span: 1 };
+}
+function headOf(c){ return c <= 10 ? (c + 1) + 'L' : c === 11 ? '' : c + 'L'; }
+
+// ---------- 그리기 (rec 가 있으면 글자만 모음 → 글꼴을 미리 불러오기 위해)
+function paint(ctx, rec){
+  var a = D, st = a.stats, ex = {}, marks = a.marks || {}; (a.excl || []).forEach(function(r){ ex[r] = 1; });
+  function p(v){ return v * S; }
+  function font(sz, wt){ return (wt || 400) + ' ' + p(sz).toFixed(1) + 'px ' + FF; }
+  function T(s, x, y, sz, wt, col, al, maxW){
+    s = String(s); if (rec) rec.push(s);
+    ctx.font = font(sz, wt);
+    if (maxW && ctx.measureText(s).width > p(maxW)) { while (s.length > 1 && ctx.measureText(s + '…').width > p(maxW)) s = s.slice(0, -1); s += '…'; }
+    var w = ctx.measureText(s).width / S;
+    if (!rec) { ctx.fillStyle = col || INK; ctx.textAlign = al || 'left'; ctx.textBaseline = 'alphabetic'; ctx.fillText(s, p(x), p(y)); }
+    return w;
+  }
+  function TW(s, sz, wt){ ctx.font = font(sz, wt); if (rec) rec.push(String(s)); return ctx.measureText(String(s)).width / S; }
+  function box(x, y, w, h, fill, stroke, lw, rad){
+    if (rec) return;
+    ctx.beginPath();
+    if (ctx.roundRect) ctx.roundRect(p(x), p(y), p(w), p(h), p(rad || 0)); else ctx.rect(p(x), p(y), p(w), p(h));
+    if (fill) { ctx.fillStyle = fill; ctx.fill(); }
+    if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = p(lw || 0.25); ctx.stroke(); }
+  }
+  function hatch(x, y, w, h){
+    if (rec) return;
+    ctx.save(); ctx.beginPath(); ctx.rect(p(x), p(y), p(w), p(h)); ctx.clip();
+    ctx.strokeStyle = '#C3CAD3'; ctx.lineWidth = p(0.22);
+    for (var k = -h; k < w; k += 1.3) { ctx.beginPath(); ctx.moveTo(p(x + k), p(y + h)); ctx.lineTo(p(x + k + h), p(y)); ctx.stroke(); }
+    ctx.restore();
+  }
+  if (!rec) { ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, W, H); }
+
+  // ----- 머리
+  var sub = '객실 청결 활동 진도 현황' + (a.memo ? '  ·  ' + a.memo : '');
+  T(sub, 10, 15.2, 3.4, 700, MUTED, 'left', 175);
+  if (!rec) { ctx.beginPath(); ctx.arc(p(12.6), p(22.6), p(2.3), 0, Math.PI * 2); ctx.fillStyle = a.hex; ctx.fill(); }
+  T(a.name, 17, 25.3, 7.4, 900, NAVY, 'left', 165);
+  var period = dot(a.start) + ' ~ ' + (a.due ? dot(a.due) + ' (목표)' : '');
+  T('기간  ' + period, 287, 15.2, 3.2, 700, INK, 'right');
+  T('기준  ' + a.asOf, 287, 20.6, 3.2, 400, MUTED, 'right');
+  var stLab = a.status === '진행' ? '진행 중' : a.status === '끝남' ? '완료 처리 ' + dot(a.endedDay) : a.status;
+  var sw = TW(stLab, 3.0, 900) + 5;
+  box(287 - sw, 23.2, sw, 4.8, a.status === '진행' ? '#2E7D4F' : NAVY, null, 0, 2.4);
+  T(stLab, 287 - sw / 2, 26.6, 3.0, 900, '#fff', 'center');
+  box(10, 30.2, 277, 0.7, NAVY);
+
+  // ----- 도면 (왼쪽)
+  var X0 = 10, Y0 = 34, LW = 9, PW = 11, GW = 183 - LW - PW, G = 1.6, PITCH = (GW - 3 * G) / 18, HEAD = 5, RH = (166 - HEAD) / 28;
+  function cx(c){ return X0 + LW + c * PITCH + ((c >= 4) + (c >= 6) + (c >= 12)) * G; }
+  function ry(f){ return Y0 + HEAD + (31 - f) * RH; }
+  for (var c = 0; c < 18; c++) { var hl = headOf(c); if (hl) T(hl, cx(c) + PITCH / 2, Y0 + 3.4, 2.3, 700, MUTED, 'center'); }
+  T('층', X0 + LW - 1.5, Y0 + 3.4, 2.3, 700, MUTED, 'right');
+  T('처리율', X0 + 183, Y0 + 3.4, 2.3, 700, MUTED, 'right');
+  for (var f = 31; f >= 4; f--) {
+    var y = ry(f);
+    if ((31 - f) % 2 === 1) box(X0, y, 183, RH, '#F7F8FA');
+    T(f + '층', X0 + LW - 1.5, y + RH / 2 + 0.95, 2.6, 900, NAVY, 'right');
+    var fo = st.floors[f] || { t: 0, d: 0, i: 0 }, fp = fo.t ? Math.round(fo.d / fo.t * 100) : 0;
+    T(fo.t ? fp + '%' : '-', X0 + 183, y + RH / 2 + 0.95, 2.6, fp === 100 ? 900 : 700, fp === 100 ? '#1B5E20' : fp ? INK : '#9AA4B0', 'right');
+  }
+  (a.rooms || []).forEach(function(r){
+    var q = colOf(r), f2 = fl(r), x = cx(q.c) + 0.3, w = PITCH * q.span - 0.6, y2 = ry(f2) + 0.4, h = RH - 0.8;
+    var m = marks[r], isx = !!ex[r], lab = r + (r === '2901' ? '  PLT' : '');
+    if (isx) { box(x, y2, w, h, '#EEF1F4'); hatch(x, y2, w, h); box(x, y2, w, h, null, '#C3CAD3', 0.2, 0.6); T(lab, x + w / 2, y2 + h / 2 + 0.9, 2.4, 700, '#9AA4B0', 'center'); return; }
+    if (!m) { box(x, y2, w, h, '#fff', '#AEB8C4', 0.22, 0.6); T(lab, x + w / 2, y2 + h / 2 + 0.9, 2.4, 700, '#3A4656', 'center'); return; }
+    if (m.s === '이상') {
+      box(x, y2, w, h, RED_SOFT, RED, 0.5, 0.6); T(lab, x + w / 2 - 0.4, y2 + h / 2 + 0.9, 2.4, 900, '#8E1B1B', 'center');
+      T('!', x + w - 0.9, y2 + 2.1, 2.2, 900, RED, 'center'); return;
+    }
+    box(x, y2, w, h, a.hex, null, 0, 0.6); T(lab, x + w / 2, y2 + h / 2 + 0.9, 2.4, 900, '#fff', 'center');
+  });
+  if (!rec) { ctx.strokeStyle = '#DDE2E8'; ctx.lineWidth = p(0.2); [4, 6, 12].forEach(function(c){ var xx = cx(c) - G / 2; ctx.beginPath(); ctx.moveTo(p(xx), p(Y0 + 1)); ctx.lineTo(p(xx), p(Y0 + HEAD + 28 * RH)); ctx.stroke(); }); }
+
+  // ----- 오른쪽 패널
+  var RX = 198, RWd = 89;
+  box(RX, 34, RWd, 42, SOFT, null, 0, 2);
+  T('진도율', RX + 4, 40.2, 3.2, 700, MUTED);
+  T(st.pct + '%', RX + 4, 54.2, 13.5, 900, NAVY);
+  T('처리 ' + st.proc + ' / ' + st.target + '실', RX + RWd - 4, 40.2, 3.4, 900, INK, 'right');
+  T('오늘 +' + st.today + '실', RX + RWd - 4, 46, 3.0, 700, st.today ? '#1B5E20' : MUTED, 'right');
+  T('(완료 + 이상) ÷ 대상', RX + RWd - 4, 51.4, 2.5, 400, MUTED, 'right');
+  var gx = RX + 4, gw = RWd - 8;
+  box(gx, 56.6, gw, 4, '#DCE2E9', null, 0, 2);
+  if (!rec && st.target) {
+    ctx.save(); ctx.beginPath(); if (ctx.roundRect) ctx.roundRect(p(gx), p(56.6), p(gw), p(4), p(2)); else ctx.rect(p(gx), p(56.6), p(gw), p(4)); ctx.clip();
+    ctx.fillStyle = a.hex; ctx.fillRect(p(gx), p(56.6), p(gw * st.done / st.target), p(4));
+    ctx.fillStyle = RED; ctx.fillRect(p(gx + gw * st.done / st.target), p(56.6), p(gw * st.issue / st.target), p(4));
+    ctx.restore();
+  }
+  var tiles = [['대상', st.target, INK], ['완료', st.done, a.hex], ['이상', st.issue, st.issue ? RED : INK], ['미완료', st.left, st.left ? INK : '#1B5E20']];
+  var tw = (gw - 3 * 2) / 4;
+  tiles.forEach(function(t, i){ var x = gx + i * (tw + 2); box(x, 63, tw, 11, '#fff', '#DCE2E9', 0.2, 1.2); T(t[0], x + tw / 2, 66.7, 2.5, 700, MUTED, 'center'); T(t[1], x + tw / 2, 72.3, 4.4, 900, t[2], 'center'); });
+
+  // 범례
+  var lx = RX, ly = 80.5;
+  [['완료', 'd'], ['이상 있음', 'i'], ['미완료', 'n'], ['대상 제외', 'x']].forEach(function(L){
+    var sx = lx, sy = ly - 2.6;
+    if (L[1] === 'd') box(sx, sy, 5, 3.4, a.hex, null, 0, 0.6);
+    else if (L[1] === 'i') { box(sx, sy, 5, 3.4, RED_SOFT, RED, 0.45, 0.6); T('!', sx + 4, sy + 2.2, 2, 900, RED, 'center'); }
+    else if (L[1] === 'n') box(sx, sy, 5, 3.4, '#fff', '#AEB8C4', 0.22, 0.6);
+    else { box(sx, sy, 5, 3.4, '#EEF1F4'); hatch(sx, sy, 5, 3.4); box(sx, sy, 5, 3.4, null, '#C3CAD3', 0.2, 0.6); }
+    lx += 6.2 + T(L[0], sx + 6.2, ly, 2.7, 700, INK) + 4;
+  });
+
+  // 층별 진도표 (두 줄)
+  T('층별 진도', RX, 89.8, 3.4, 900, NAVY);
+  T('처리 / 대상', RX + RWd, 89.8, 2.5, 400, MUTED, 'right');
+  box(RX, 91.2, RWd, 0.35, NAVY);
+  var TR = 4.3, CW = (RWd - 3) / 2;
+  for (var k = 0; k < 28; k++) {
+    var f3 = 31 - k, col = k < 14 ? 0 : 1, row = k % 14, x3 = RX + col * (CW + 3), y3 = 92.4 + row * TR;
+    var fo3 = st.floors[f3] || { t: 0, d: 0, i: 0 }, pc = fo3.t ? fo3.d / fo3.t : 0;
+    if (row % 2 === 0) box(x3, y3, CW, TR, '#F7F8FA');
+    T(f3 + '층', x3 + 1, y3 + 3.0, 2.6, 900, NAVY);
+    box(x3 + 9, y3 + 1.35, 15, 1.7, '#E1E6EC', null, 0, 0.85);
+    if (pc) box(x3 + 9, y3 + 1.35, 15 * pc, 1.7, pc >= 1 ? '#2E7D4F' : a.hex, null, 0, 0.85);
+    T(fo3.d + '/' + fo3.t + (fo3.i ? ' !' + fo3.i : ''), x3 + 34.2, y3 + 3.0, 2.4, 700, fo3.i ? RED : INK, 'right');
+    T(Math.round(pc * 100) + '%', x3 + CW - 0.6, y3 + 3.0, 2.5, 900, pc >= 1 ? '#1B5E20' : INK, 'right');
+  }
+
+  // 이상 · 미완료 목록
+  var ly2 = 92.4 + 14 * TR + 5.2, bottom = 199.5, LH = 3.7;
+  var iss = (a.rooms || []).filter(function(r){ return marks[r] && marks[r].s === '이상' && !ex[r]; });
+  var left = (a.rooms || []).filter(function(r){ return !ex[r] && !marks[r]; });
+  function flow(items, x, y, maxW, maxLines, sz, wt, col, sep){   // 글자 조각을 줄 바꿈하며 놓기, 넘치면 '… 외 N'
+    var lines = [[]], lw2 = 0, used = 0, sepW = TW(sep, sz, wt);
+    for (var i = 0; i < items.length; i++) {
+      var iw = TW(items[i], sz, wt), need = (lines[lines.length - 1].length ? sepW : 0) + iw;
+      if (lw2 + need > maxW && lines[lines.length - 1].length) { if (lines.length >= maxLines) break; lines.push([]); lw2 = 0; need = iw; }
+      lines[lines.length - 1].push(items[i]); lw2 += need; used++;
+    }
+    var rest = items.length - used;
+    if (rest > 0) { var last = lines[lines.length - 1], more = ' … 외 ' + rest;
+      while (last.length > 1 && TW(last.join(sep) + more, sz, wt) > maxW) { last.pop(); rest++; }
+      more = ' … 외 ' + rest; lines[lines.length - 1] = [last.join(sep) + more]; }
+    lines.forEach(function(L, j){ T(L.join(sep), x, y + j * LH, sz, wt, col); });
+    return lines.length;
+  }
+  var room4 = Math.floor((bottom - ly2) / LH);
+  if (iss.length) {
+    T('이상 있는 객실 ' + iss.length, RX, ly2, 3.2, 900, RED);
+    var issLines = Math.max(2, Math.min(Math.ceil(iss.length / 3), left.length ? Math.floor((room4 - 4) / 2) : room4 - 2));
+    var used2 = flow(iss.map(function(r){ var m = marks[r]; return r + ' ' + (m.memo || '이상'); }), RX, ly2 + LH + 0.4, RWd, issLines, 2.55, 700, '#8E1B1B', '   ');
+    ly2 += (used2 + 1) * LH + 2.4;
+  }
+  var CH = 19.5;   // 날짜별 막대 자리 (남는 자리가 있으면)
+  if (ly2 < bottom - 2) {
+    T('미완료 객실 ' + left.length, RX, ly2, 3.2, 900, NAVY);
+    var linesLeft = Math.floor((bottom - ly2 - 0.4) / LH), usedL = 1;
+    if (!left.length) T('대상 객실을 모두 처리했어요.', RX, ly2 + LH + 0.4, 2.8, 700, '#1B5E20');
+    else if (left.length > 150) T('미완료가 많아 왼쪽 도면의 흰 칸으로 확인해 주세요.', RX, ly2 + LH + 0.4, 2.6, 400, MUTED, 'left', RWd);
+    else usedL = flow(left, RX, ly2 + LH + 0.4, RWd, bottom - ly2 - (usedL + 1) * LH > CH + 4 ? Math.max(1, linesLeft - Math.ceil((CH + 4) / LH)) : linesLeft, 2.55, 700, INK, '  ');
+    ly2 += (usedL + 1) * LH + 3.6;
+  }
+  // 날짜별 처리 (최근 14일, 객실마다 마지막 체크한 날)
+  if (bottom - ly2 >= CH && a.today) {
+    var dd = [], t0 = new Date(a.today + 'T00:00:00Z');
+    for (var q2 = 13; q2 >= 0; q2--) { var dt = new Date(t0.getTime() - q2 * 864e5).toISOString().slice(0, 10); if (!a.start || dt >= a.start) dd.push(dt); }
+    var mx = Math.max.apply(null, dd.map(function(x){ return st.days[x] || 0; }).concat([1]));
+    T('날짜별 처리', RX, ly2, 3.2, 900, NAVY); T('최근 ' + dd.length + '일', RX + RWd, ly2, 2.5, 400, MUTED, 'right');
+    var by0 = ly2 + CH - 3.6, bh = CH - 9.5, bw = RWd / 14;
+    box(RX, by0, RWd, 0.25, LINE);
+    dd.forEach(function(x, i){ var n = st.days[x] || 0, bx = RX + i * bw, hh = n ? Math.max(0.8, bh * n / mx) : 0;
+      if (n) { box(bx + bw * 0.18, by0 - hh, bw * 0.64, hh, x === a.today ? '#2E7D4F' : a.hex, null, 0, 0.5); T(n, bx + bw / 2, by0 - hh - 0.8, 2.2, 700, INK, 'center'); }
+      T(md(x), bx + bw / 2, by0 + 3.2, 2.0, x === a.today ? 900 : 400, x === a.today ? INK : MUTED, 'center'); });
+  }
+
+  // ----- 바닥
+  box(10, 201.6, 277, 0.3, LINE);
+  T(a.id + '  ·  정비 지원 앱 객실 활동판 기록 기준  ·  객실마다 마지막 체크 기준', 10, 205.6, 2.5, 400, MUTED);
+  T('주식회사 유니에스  ·  한화리조트 해운대 객실관리', 287, 205.6, 2.6, 700, NAVY, 'right');
+}
+
+// ---------- 시작 (데이터는 아래 module 이 Firestore 에서 받아 window.__actStart(P) 로 넘김)
+var cv = null, png = '';
+function bar(){
+  $('#ttl').textContent = D.name + ' · 진도 현황';
+  document.title = D.name + ' 진도 현황';
+  $('#bar').insertAdjacentHTML('beforeend', '<button class="pri" id="bprint" disabled>🖨 인쇄 · PDF 저장</button><button id="bpng" disabled>🖼 사진(PNG) 저장</button><a href="' + esc(location.href) + '">↻ 최신으로</a>');
+}
+function fileName(){ var t = (D.today || '').replace(/-/g, '').slice(4); return (D.name + '_진도현황_' + t).replace(/[\\/:*?"<>|]+/g, ' ') + '.png'; }
+function build(){
+  cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+  var ctx = cv.getContext('2d'), rec = [];
+  paint(ctx, rec);   // 1) 쓸 글자 모으기
+  var text = rec.join(' ') + '0123456789%/·…!', fonts = document.fonts;
+  var ready = fonts && fonts.load ? Promise.all(['400', '700', '900'].map(function(w){ return fonts.load(w + ' 40px "Noto Sans KR"', text); })) : Promise.resolve();
+  var timeout = new Promise(function(r){ setTimeout(r, 6000); });
+  Promise.race([ready, timeout]).then(function(){
+    paint(ctx, null);   // 2) 그리기
+    png = cv.toDataURL('image/png');
+    $('#wrap').innerHTML = '<img id="pv" alt="' + esc(D.name) + ' 진도 현황 도면">'; $('#pv').src = png;
+    $('#print').innerHTML = '<img alt="">'; $('#print img').src = png;
+    var tip = $('#tip'); tip.hidden = false;
+    tip.textContent = "PDF로 받으려면 '인쇄 · PDF 저장' → 대상(프린터)을 'PDF로 저장'으로 고르세요. 휴대폰에서 사진 저장이 안 되면 그림을 길게 눌러 '이미지 저장'.";
+    $('#bprint').disabled = false; $('#bpng').disabled = false;
+    window.__printed = true;
+  });
+}
+document.addEventListener('click', function(e){
+  var t = e.target;
+  if (t.id === 'bprint') { window.print(); return; }
+  if (t.id === 'bpng' && cv) {
+    var go = function(href, rev){ var a = document.createElement('a'); a.href = href; a.download = fileName(); document.body.appendChild(a); a.click(); a.remove(); if (rev) setTimeout(function(){ URL.revokeObjectURL(href); }, 4000); };
+    if (cv.toBlob) cv.toBlob(function(b){ go(b ? URL.createObjectURL(b) : png, !!b); }, 'image/png'); else go(png, false);
+  }
+});
+window.__actStart = function(p){
+  if (D) return;   // 처음 받은 숫자로 한 번만 그림 (새 숫자는 '↻ 최신으로')
+  P = p; D = P && P.d;
+  if (!D) { $('#wrap').innerHTML = '<div class="msg">' + esc((P && P.err) || '불러오지 못했어요.') + '</div>'; return; }
+  bar(); try { build(); } catch (err) { $('#wrap').innerHTML = '<div class="msg">도면을 그리지 못했어요: ' + esc(err.message) + '</div>'; }
+};
+</script>
+<script type="module">
+// 활동 문서와 객실 체크를 한 번 받아 앱과 같은 계산(act.js)으로 숫자를 만듦
+import * as store from './store.js?v=2026.11.07-1';
+const id = new URLSearchParams(location.search).get('id') || '';
+const fail = m => window.__actStart({ err: m });
+let act = null, marks = null, started = false;
+const eng = window.makeActServer({
+  acts: () => act ? [Object.assign({ id }, act)] : [], marks: () => marks || {}, isAdmin: () => false,
+  workerOk: () => false, printUrl: () => '', saveMark() {}, saveAct() {}
+});
+function go() { if (act !== null && marks !== null && !started) { started = true; window.__actStart(act ? eng.printData(id) : { err: '활동을 찾지 못했어요. 앱에서 다시 열어 주세요.' }); } }
+if (!/^[A-Za-z0-9_-]{1,40}$/.test(id)) fail('출력할 활동이 없어요. 앱의 활동판에서 \'🖨 도면 출력\'을 다시 눌러 주세요.');
+else {
+  setTimeout(() => { if (!started) fail('기록을 받지 못했어요. 인터넷 연결을 확인하고 \'↻\' 새로 고침해 주세요.'); }, 20000);
+  let subbed = false;
+  store.onUser(u => {
+    if (!u) { store.signInAnon().catch(e => fail('로그인하지 못했어요 (' + (e && e.code || e) + ')')); return; }
+    if (subbed) return; subbed = true;
+    store.listenDoc('acts/' + id, (d, m) => { if (!d && m && m.fromCache) return; act = d || false; go(); }, e => fail('활동을 받지 못했어요: ' + (e && e.code || e)));
+    store.listenQuery('acts/' + id + '/marks', [], (docs, meta) => { if (!docs.length && meta && meta.fromCache) return; const m = {}; docs.forEach(x => { m[x.id] = x.data; }); marks = m; go(); }, e => fail('체크 기록을 받지 못했어요: ' + (e && e.code || e)));
+  });
+}
+</script>
+</body>
+</html>

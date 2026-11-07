@@ -1,0 +1,192 @@
+// 관리자 '더티 배분 만들기' 화면 시험 — 휴대폰(Playwright) + 메모리 Firestore(규칙 v5)
+// NODE_PATH=/opt/node22/lib/node_modules PLAYWRIGHT_BROWSERS_PATH=/opt/pw-browsers node run_dist.js /home/claude/dirty
+const { chromium } = require('playwright');
+const fs = require('fs'), path = require('path'), { execFileSync } = require('child_process');
+const { make } = require('./fakedb');
+const APP = process.argv[2] || '/home/claude/dirty';
+const BASE = 'https://haeundae-rm.github.io/dirty/';
+const Calc = require(path.join(APP, 'distcalc.js'));
+const fmt = (d, f) => { const p = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Seoul', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(d).reduce((o, x) => (o[x.type] = x.value, o), {}); return f.replace('yyyy', p.year).replace('MM', p.month).replace('dd', p.day).replace('HH', p.hour).replace('mm', p.minute); };
+const DAY = fmt(new Date(), 'yyyy-MM-dd'), TOM = fmt(new Date(Date.now() + 864e5), 'yyyy-MM-dd');
+let pass = 0, fail = 0;
+function ok(c, label) { if (c) { pass++; console.log('  ✅ ' + label); } else { fail++; console.log('  ❌ ' + label); } }
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+async function until(fn, ms) { const t = Date.now(); while (Date.now() - t < (ms || 4000)) { try { if (await fn()) return true; } catch (e) {} await sleep(100); } return false; }
+const txt = (page, sel) => page.locator(sel).first().innerText().catch(() => '');
+
+// ---- 가짜 정비보고서: 오늘 22명(휴무 1) + 내일 10명
+const MAIDS = '김영희 이순자 박정숙 최미경 정은주 강순옥 조혜진 윤말순 장경자 임숙희 한미라 오정란 서영자 신옥순 권미숙 황정희 안순덕 송미애 류경순 홍길자 문정임 배순남'.split(' ');
+const UNITS = [14, 13, 12, 12, 11, 10, 9, 14, 13, 12, 11, 10, '휴무', 12, 13, 14, 8, 11, 12, 10, 13, 12];
+function roomsFor(cards) {
+  const rooms = []; let fl = 4, k = 1;
+  cards.forEach(([n, u]) => { if (typeof u !== 'number') return; for (let i = 0; i < Math.round(u); i++) { rooms.push([String(fl * 100 + k), n]); if (++k > 30) { k = 1; fl++; } } });
+  return rooms;
+}
+const cardsT = MAIDS.map((n, i) => [n, UNITS[i]]), roomsT = roomsFor(cardsT);
+roomsT.push([String(3001), '외부메이드']);   // 카드에 없는 이름 → 경고
+const cardsM = MAIDS.slice(0, 10).map((n, i) => [n, 12]), roomsM = roomsFor(cardsM);
+const spec = { days: {} };
+spec.days[String(+DAY.slice(8))] = { cards: cardsT, rooms: roomsT };
+spec.days[String(+TOM.slice(8))] = { cards: cardsM, rooms: roomsM };
+const XLSX = path.join(__dirname, 'report_test.xlsx');
+fs.writeFileSync(path.join(__dirname, 'spec.json'), JSON.stringify(spec));
+execFileSync('python3', [path.join(__dirname, 'make_report.py'), path.join(__dirname, 'spec.json'), XLSX]);
+const dataOf = (cards, rooms) => ({ cards: cards.map(([name, unit]) => ({ name, unit: String(unit) })), rooms: rooms.map(([room, name]) => ({ room, name })) });
+
+async function phone(browser, db, name) {
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true, locale: 'ko-KR', timezoneId: 'Asia/Seoul' });
+  await ctx.exposeBinding('__db', (src, op, a) => db.handle(src.page, op, a));
+  await ctx.route('**/*', async route => {
+    const u = route.request().url();
+    if (/fonts\.(googleapis|gstatic)\.com/.test(u)) return route.fulfill({ status: 200, contentType: 'text/css', body: '' });
+    if (u.startsWith(BASE)) {
+      const rel = u.slice(BASE.length).split('?')[0] || 'index.html';
+      const file = rel === 'store.js' ? path.join(__dirname, 'fake_store.js') : path.join(APP, rel);
+      if (!fs.existsSync(file)) return route.fulfill({ status: 404, body: 'nf' });
+      const ct = /\.js$/.test(file) ? 'application/javascript' : /\.html$/.test(file) ? 'text/html' : /\.json$/.test(file) ? 'application/json' : /\.css$/.test(file) ? 'text/css' : 'application/octet-stream';
+      return route.fulfill({ status: 200, contentType: ct + '; charset=utf-8', body: fs.readFileSync(file) });
+    }
+    return route.abort();
+  });
+  const page = await ctx.newPage();
+  page.errors = [];
+  page.on('pageerror', e => page.errors.push(String(e)));
+  page.on('console', m => { if (m.type() === 'error' && !/fonts|ERR_|Failed to load/.test(m.text())) page.errors.push('console: ' + m.text()); });
+  page.on('dialog', d => { page.lastDialog = d.message(); d.accept(); });
+  await page.goto(BASE);
+  page.label = name;
+  return page;
+}
+async function adminIn(p, db) {
+  await until(async () => (await p.locator('[data-admin-in]').count()) === 1);
+  await p.click('[data-admin-in]'); await p.click('[data-who="소장"]'); await p.fill('#pin', db.PW); await p.click('.panel [data-do]');
+  return until(async () => (await p.locator('[data-dist]').count()) === 1, 6000);
+}
+const chip = (p, n) => p.locator('.dz [data-dz="who"][data-v="' + n + '"]');
+
+(async () => {
+  const browser = await chromium.launch();
+  const db = make();
+  await db.serverWrite('sup_meta/names', { names: ['호세인', '니라기', '이나현', '사롤'], lastDate: '2026-11-06', day: DAY });
+  await db.serverWrite('sup_meta/relay', { ok: true, err: '', ver: 't', at: { __ts: Date.now() } });
+  const att = (n, task) => db.serverWrite('sup/' + DAY + '/rows/gs_근태_' + n, { tab: '근태', row: [null, DAY, n, '출근', task, '', '본인', ''], at: { __ts: Date.now() - 3600e3 }, clientAt: { __ts: Date.now() - 3600e3 }, uid: db.BOT, by: '관리자' });
+  await att('호세인', '더티'); await att('니라기', '더티'); await att('사롤', '기타 업무');
+
+  console.log('① 근무자 휴대폰에는 버튼 없음 · 배정 준비 중');
+  const pW = await phone(browser, db, '근무자');
+  await until(async () => (await pW.locator('[data-pick="니라기"]').count()) === 1);
+  await pW.click('[data-pick="니라기"]');
+  ok(await until(async () => /준비 중/.test(await txt(pW, '#main'))), '배정 전 안내');
+  ok(await pW.locator('[data-dist]').count() === 0, '근무자 화면에는 더티 배분 버튼 없음');
+
+  console.log('② 관리자: 더티 배분 만들기 열기');
+  const pM = await phone(browser, db, '관리자');
+  ok(await adminIn(pM, db), '관리자 화면에 📋 더티 배분 만들기 버튼');
+  await pM.click('[data-dist]');
+  ok(await until(async () => (await pM.locator('#dz').count()) === 1), '배분 창 열림');
+  ok(await until(async () => (await chip(pM, '호세인').getAttribute('class')) === 'd' && (await chip(pM, '니라기').getAttribute('class')) === 'd' && (await chip(pM, '사롤').getAttribute('class')) === 'e'), '오늘 출근 기록으로 미리 고름 (호세인·니라기 더티, 사롤 기타)');
+  ok(/정비수 14개 이상 11실 \/ 13개 10실 \/ 12개 8실 \/ 11개 6실 \/ 10개 4실/.test(await txt(pM, '.dz-rule')), '기본 기준 = 11/6 기준');
+  ok(await pM.locator('.dz-go[disabled]').count() === 1, '파일 전에는 확정 버튼 꺼짐');
+
+  console.log('③ 정비보고서 고르기 → 미리보기');
+  await pM.setInputFiles('.dz input[type=file]', XLSX);
+  ok(await until(async () => /출근 메이드 21명/.test(await txt(pM, '.dz')), 8000), '오늘 시트 읽음 · 출근 메이드 21명 (휴무 빠짐)');
+  await chip(pM, '이나현').click();   // 3번째 더티
+  ok(await until(async () => (await pM.locator('.dz-b:not(.dz-pool)').count()) === 3), '정비보조 3명 블록');
+  const W1 = await pM.evaluate(() => SupDist._K().order.filter(n => SupDist._K().pick[n] === 'd'));
+  ok(W1.length === 3 && W1[2] === '이나현', '더티 순서 = 출근 순 + 새로 누른 사람 끝 (' + W1.join(',') + ')');
+  const opt1 = { date: DAY, workers: W1, etc: ['사롤'], rule: { '4': 0, '5': 0, '6': 0, '7': 0, '8': 0, '9': 0, '10': 4, '11': 6, '12': 8, '13': 10, top: 14, topVal: 11 }, over: {}, move: {} };
+  const exp1 = Calc.compute(dataOf(cardsT, roomsT), opt1);
+  const ui1 = await pM.evaluate(() => SupDist._K().res.plan);
+  ok(JSON.stringify(ui1) === JSON.stringify(exp1.plan), '화면 계산 = distcalc (Node) 같은 결과');
+  // 파이썬(run_dusting 계산)과도 대조
+  const ref = JSON.parse(execFileSync('python3', ['-I', (fs.existsSync(path.join(APP, 'test', 'dist_ref.py')) ? path.join(APP, 'test', 'dist_ref.py') : '/home/claude/dirty/test/dist_ref.py')], { input: JSON.stringify(Object.assign({}, dataOf(cardsT, roomsT), { rule: { 10: 4, 11: 6, 12: 8, 13: 10, 14: 11, 15: 11, 16: 11, 17: 11, 18: 11, 19: 11 }, workers: opt1.workers, etc: opt1.etc, over: {}, date: DAY })) }).toString());
+  ok(JSON.stringify(ref.plan) === JSON.stringify(ui1), '파이썬 run_dusting 계산과도 같음 (인당 ' + ref.per + '실)');
+  ok(/외부메이드/.test(await txt(pM, '.dz-warns')), '카드에 없는 메이드 경고');
+  ok(/총원 4명 = 더티 3명 \+ 기타 업무 1명/.test(await txt(pM, '.dz')), '총원 표시');
+
+  console.log('④ 예외 수량 · 옮기기');
+  const firstMaid = exp1.blocks[0].maids[0].name, mvMaid = exp1.blocks[0].maids[1].name;
+  await pM.fill('.dz input[data-dz="over"][data-v="' + firstMaid + '"]', '3');
+  await pM.locator('.dz input[data-dz="over"][data-v="' + firstMaid + '"]').dispatchEvent('change');
+  ok(await until(() => pM.evaluate(n => SupDist._K().over[n] === 3, firstMaid)), firstMaid + ' 예외 3실');
+  await pM.selectOption('.dz select[data-dz="move"][data-v="' + mvMaid + '"]', '이나현');
+  ok(await until(() => pM.evaluate(n => SupDist._K().res.plan.some(x => x.m === n && x.w === '이나현'), mvMaid)), mvMaid + ' → 이나현 으로 옮김');
+  const exp2 = Calc.compute(dataOf(cardsT, roomsT), Object.assign({}, opt1, { over: { [firstMaid]: 3 }, move: { [mvMaid]: '이나현' } }));
+  ok(JSON.stringify(await pM.evaluate(() => SupDist._K().res.plan)) === JSON.stringify(exp2.plan), '예외·옮김 반영 결과 = distcalc');
+
+  if (process.env.SHOT) { await pM.screenshot({ path: process.env.SHOT + '/dist1.png' }); await pM.evaluate(() => { document.getElementById('dz').scrollTop = 99999; }); await pM.screenshot({ path: process.env.SHOT + '/dist2.png' }); await pM.evaluate(() => { document.getElementById('dz').scrollTop = 0; }); }
+  console.log('⑤ 기준 바꾸기 → 저장 (다음에도)');
+  await pM.click('.dz [data-dz="ruletoggle"]');
+  await pM.fill('.dz input[data-dz="rule"][data-v="9"]', '2');
+  await pM.locator('.dz input[data-dz="rule"][data-v="9"]').dispatchEvent('change');
+  ok(await until(() => { const d = db.docs.get('sup_meta/distcfg'); return d && d.rule && d.rule['9'] === 2; }), 'sup_meta/distcfg 에 기준 저장 (9개 → 2실)');
+  ok(/9개 2실/.test(await txt(pM, '.dz-rule')), '기준 문구 갱신');
+
+  console.log('⑥ 확정 → 근무자 휴대폰에 바로');
+  const want = await pM.evaluate(() => SupDist._K().res.plan);
+  await pM.click('.dz [data-dz="save"]');
+  ok(await until(async () => /더티 배분을 올렸어요/.test(await txt(pM, '.dz'))), '완료 화면');
+  const doc = db.docs.get('sup/' + DAY);
+  ok(doc && doc.src === 'app' && /^app:/.test(doc.sig) && '__ts' in doc.issued && JSON.stringify(doc.plan) === JSON.stringify(want), 'sup/' + DAY + ' = 화면 배정 그대로 (src app · issued 서버 시각)');
+  ok(doc && doc.meta && doc.meta.workers.join() === W1.join() && doc.meta.etc.join() === '사롤' && doc.meta.over[firstMaid] === 3, '고른 명단·예외도 같이 저장 (다시 만들 때 불러옴)');
+  if (process.env.SHOT) await pM.screenshot({ path: process.env.SHOT + '/dist3.png' });
+  ok(/더티 지원 업무 기준 \(정규 A\): 정비수 14개 이상 11실/.test(await pM.inputValue('.dz textarea')), '룸메이드 공지방용 기준 문구');
+  const niraMaids = want.filter(x => x.w === '니라기').map(x => x.m);
+  ok(await until(async () => (await pW.locator('.maid .nm').count()) === niraMaids.length && /남은 더티/.test(await txt(pW, '.sum')), 6000), '니라기 휴대폰에 담당 메이드 ' + niraMaids.length + '명 바로');
+  await pM.click('.dz [data-dz="close"]');
+  ok(await until(async () => /진행 현황/.test(await txt(pM, '#main')) && /다시 만들기/.test(await txt(pM, '.dz-open'))), '관리자 진행 현황 + "다시 만들기" 버튼');
+
+  console.log('⑦ 근무 중 체크·넘겨받기 → 다시 배분 (체크 실적 유지, 변경은 새로)');
+  const r0 = want.filter(x => x.w === '니라기')[0];
+  const room0 = r0.r.split(', ')[0];
+  await pW.click('.room[data-r="' + room0 + '"]');
+  ok(await until(() => [...db.docs.keys()].some(k => k.startsWith('sup/' + DAY + '/rows/') && db.docs.get(k).tab === '체크')), '니라기 ' + room0 + ' 체크 저장');
+  const hoMaid = want.filter(x => x.w === '호세인')[0].m;
+  await until(async () => { await pW.evaluate(() => { const d = document.querySelector('details[data-sec="others"]'); if (d) d.open = true; }); await pW.click('[data-hand="' + hoMaid + '"]', { timeout: 700 }); return true; }, 8000);
+  await pW.click('.panel [data-do]');
+  ok(await until(async () => (await pW.locator('.maid .nm', { hasText: hoMaid }).count()) === 1), '니라기가 ' + hoMaid + ' 넘겨받음');
+  await sleep(50);
+  await pM.click('[data-dist]');
+  ok(await until(async () => (await chip(pM, '이나현').getAttribute('class')) === 'd'), '다시 열면 지난 확정 명단 그대로 (이나현 더티)');
+  ok(/이미 배정이 있어요/.test(await txt(pM, '.dz')), '이미 배정 있음 안내');
+  await chip(pM, '이나현').click();   // 더티 → 기타
+  await pM.setInputFiles('.dz input[type=file]', XLSX);
+  await until(async () => (await pM.locator('.dz-b:not(.dz-pool)').count()) === 2, 8000);
+  await pM.click('.dz [data-dz="save"]');
+  ok(await until(async () => /더티 배분을 올렸어요/.test(await txt(pM, '.dz'))), '다시 확정 (확인 창 → 예)');
+  ok(/이미 있어요/.test(pM.lastDialog || ''), '확인 창: 체크 실적 유지 안내');
+  const doc2 = db.docs.get('sup/' + DAY);
+  ok(doc2.meta.workers.join() === W1.slice(0, 2).join() && doc2.meta.etc.slice().sort().join() === ['사롤', '이나현'].sort().join(), '새 배정: 더티 2명 + 기타 2명');
+  ok(await until(() => pW.evaluate(r => !!checks[r], room0)), '이미 체크한 ' + room0 + ' 는 그대로 완료');
+  const hoNow = doc2.plan.filter(x => x.m === hoMaid)[0];
+  ok(await until(() => pW.evaluate((a) => { const m = findMaid(a.m); return m && m.worker === a.w; }, { m: hoMaid, w: hoNow.w })), '넘겨받기는 새 배정 기준으로 다시 시작 (' + hoMaid + ' → ' + hoNow.w + ')');
+  await pM.click('.dz [data-dz="close"]');
+
+  console.log('⑧ 내일 배정 미리 만들기');
+  await pM.click('[data-dist]');
+  await pM.click('.dz [data-dz="date"][data-v="' + TOM + '"]');
+  await pM.setInputFiles('.dz input[type=file]', XLSX);
+  ok(await until(async () => /출근 메이드 10명/.test(await txt(pM, '.dz')), 8000), '내일 시트(다른 날짜)를 읽음');
+  for (const n of ['호세인', '니라기', '사롤', '이나현']) { const c = await chip(pM, n).getAttribute('class'); if (c) { await chip(pM, n).click(); if ((await chip(pM, n).getAttribute('class'))) await chip(pM, n).click(); } }
+  await chip(pM, '사롤').click();
+  await pM.click('.dz [data-dz="save"]');
+  ok(await until(() => { const d = db.docs.get('sup/' + TOM); return d && d.src === 'app' && d.plan.filter(x => x.w === '사롤').length > 0; }), 'sup/' + TOM + ' 에 내일 배정 (사롤 1명)');
+  ok(db.docs.get('sup/' + DAY).meta.workers.join() === W1.slice(0, 2).join(), '오늘 배정은 그대로');
+  await pM.click('.dz [data-dz="close"]');
+
+  console.log('⑨ 위조 막기');
+  const forged = await pW.evaluate(async (d) => { try { await SupShim._S.store.set('sup/' + d, { date: d, plan: [] }); return 'ok'; } catch (e) { return 'rejected'; } }, DAY);
+  ok(forged === 'rejected', '근무자가 배정 문서를 쓰면 규칙이 거절');
+  const viaApi = await pW.evaluate(async (d) => { try { await SupShim.dist.savePlan(d, [], {}); return 'ok'; } catch (e) { return 'rejected'; } }, DAY);
+  ok(viaApi === 'rejected', '근무자 휴대폰에서 savePlan 거절');
+
+  console.log('⑩ 오류');
+  const errs = [pW, pM].flatMap(p => p.errors.map(e => p.label + ': ' + e));
+  ok(!errs.length, '화면 오류 0' + (errs.length ? ' → ' + errs.slice(0, 4).join(' | ') : ''));
+  const bad = db.log.rejects.filter(r => !(r.path === 'sup/' + DAY));
+  ok(!bad.length, '정상 흐름 규칙 거절 0' + (bad.length ? ' → ' + JSON.stringify(bad.slice(0, 2)) : ''));
+  await browser.close();
+  console.log('\n결과: ' + pass + ' 통과 / ' + fail + ' 실패');
+  process.exit(fail ? 1 : 0);
+})().catch(e => { console.error(e); process.exit(2); });

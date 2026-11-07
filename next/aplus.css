@@ -1,0 +1,58 @@
+/* 디자인 A+ (2026-11-06) — 정비 지원: 흰 바탕 + 따뜻한 갈색 포인트, 근무자 색(--wc)은 그대로
+   원칙: 버튼 위치·누르는 방법 그대로. 화면 파일(index.html) 안 스타일 위에 덮어씀 */
+:root{
+  --bg:#F6F4F1; --surface:#FFFFFF; --ink:#1C1712; --muted:#5A5148; --line:#E9E4DD;
+  --done:#1E8E3E; --done-soft:#E8F5EC; --navy:#7A3906; --brand:#9A4708; --tile:#F7F2EC; --warn:#B23A48;
+  --shadow:0 2px 10px rgba(28,23,18,.06);
+  --f-num:"Inter","Noto Sans KR",system-ui,sans-serif;
+}
+@media (rm-light-only){:root{
+  --bg:#14110E; --surface:#201B16; --ink:#EFE8E0; --muted:#B5AA9D; --line:#3A3129;
+  --done:#5CC28A; --done-soft:#14281D; --navy:#C2702A; --brand:#E39A55; --tile:#2A231C; --warn:#F07A88; --shadow:none}}
+body{font-variant-numeric:tabular-nums}
+.top{background:linear-gradient(#5E2C05 0 env(safe-area-inset-top),var(--surface) 0);color:var(--ink);border-bottom:1px solid var(--line);padding-top:calc(12px + env(safe-area-inset-top))}
+.top h1{font-size:14px;font-weight:700;color:var(--brand)}
+.top .date,.sync{color:var(--muted);opacity:1}
+.bar{background:var(--line)} .bar>i{background:var(--done)}
+.overall b{color:var(--ink)}
+.tab{border:0;background:var(--tile);color:var(--ink)}
+.tab[aria-selected="true"]{background:var(--brand);color:#fff;border-color:var(--brand)}
+.mechip{background:var(--tile);color:var(--ink)}
+.rename{border:1.5px solid var(--line);color:var(--ink)}
+.mywork{background:var(--tile);color:var(--navy);border:1.5px solid color-mix(in srgb,var(--brand) 30%,transparent)}
+/* 카드: 테두리 대신 그림자, 둥글게 */
+.notice,.sum,.maid,.pool,.kpi,.card,.pick,.att,.handed{border-color:transparent;box-shadow:var(--shadow);border-radius:18px}
+.pool,.handed{border:1.5px dashed var(--line);box-shadow:none}
+.sum{border-left:0;padding:16px}
+.sum .left .n{font:800 40px/1 var(--f-num)}
+.sum .left .of{font:700 14px var(--f-num)}
+.meter{background:var(--line)}
+.maid-head{border-left:0;padding:14px 16px 8px}
+.maid-head::before{content:"";width:6px;height:22px;border-radius:99px;background:var(--wc)}
+.maid-head .nm{font-size:18px}
+.floor{border-radius:8px}
+.stat .big{font:800 22px var(--f-num)}
+.pbar{margin:0 16px 12px}
+.rooms{gap:8px;padding:2px 16px 14px}
+.room{border-radius:12px;background:var(--bg);border:1.5px solid var(--line);font:800 18px var(--f-num);min-height:52px}
+.room.on{background:var(--done-soft);border-color:var(--done);color:#1E6B34}
+.room.on::after{font-weight:900}
+.fold{border-left:0;border-radius:0}
+.att{gap:12px}
+.att.on{background:color-mix(in srgb,var(--done) 7%,var(--surface));box-shadow:none;outline:1.5px solid color-mix(in srgb,var(--done) 40%,transparent);outline-offset:-1.5px}
+.att.off{box-shadow:none;border:1.5px dashed var(--line)}
+.attbtn{border-radius:14px}
+.attbtn.out{background:#B23A48}
+.attbtn.sub{border-radius:12px}
+.taskb{border-radius:16px;background:var(--surface)}
+.taskb.on{border-color:var(--brand);box-shadow:0 0 0 2px var(--brand) inset}
+.take,.addw{background:var(--brand)}
+.names button{background:var(--surface);border-radius:14px}
+.panel{border-radius:24px 24px 0 0}
+.acts .go{background:var(--brand);border-color:var(--brand)}
+.card .big{font:800 26px var(--f-num)}
+.thanks div{border-radius:24px}
+@media (rm-light-only){.room.on{color:var(--done)}.top{background:linear-gradient(#000 0 env(safe-area-inset-top),var(--surface) 0)}}
+
+:root{color-scheme:light}
+@media (prefers-color-scheme:dark){:root{color-scheme:only light}}  /* 삼성 인터넷 등 강제 어둡게 막기: 다크 모드를 사이트가 직접 처리한다고 알림 → 그래도 밝은 화면 */
