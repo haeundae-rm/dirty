@@ -1,6 +1,6 @@
 // distcalc.js ↔ dist_ref.py (run_dusting 계산) 무작위 대조
 import { createRequire } from 'module'; import { execFileSync } from 'child_process';
-const require = createRequire(import.meta.url); const fs = require('fs'); const C = require(fs.existsSync(new URL('../distcalc.js', import.meta.url)) ? '../distcalc.js' : '../next/distcalc.js');
+const require = createRequire(import.meta.url); const fs = require('fs'); const C = require(fs.existsSync(new URL('../distcalc.js', import.meta.url)) ? '../distcalc.js' : '../distcalc.js');
 const NAMES = '김영희 이순자 박정숙 최미경 정은주 강순옥 조혜진 윤말순 장경자 임숙희 한미라 오정란 서영자 신옥순 권미숙 황정희 안순덕 송미애 류경순 홍길자'.split(' ');
 const W = '호세인 니라기 이나현 우즈벡 다바 사롤 나디라 굴노자'.split(' ');
 let seed = 7; const rnd = () => (seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648; const ri = (a, b) => a + Math.floor(rnd() * (b - a + 1));

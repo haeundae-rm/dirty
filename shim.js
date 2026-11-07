@@ -8,7 +8,7 @@
 // 관리자 확인은 Firebase 로그인(소장·부소장 계정) + 보안 규칙. 화면의 adminTok 은 '관리자 모드' 표시용 값일 뿐
 (function () {
   'use strict';
-  var APP_VER = '2026.11.06-6';
+  var APP_VER = '2026.11.07-2';
   var TZ = 'Asia/Seoul';
   var API_URL = 'https://script.google.com/macros/s/AKfycbyPvhvScAcDfGqyxdK9pvr8vtewfjAkHsbRBiN04GCNbzE4HL_zZHODWPPb4xUHQb0LCw/exec';
   var ADMINS = { '소장': 'unieshaeundae+admin@gmail.com', '부소장': 'unieshaeundae+sub@gmail.com' };
@@ -169,6 +169,9 @@
     // 최근 근무자 이름(중계가 하루 한 번) → '어제 출근' 줄로 넣어 knownNames_ 가 그대로 찾게 함 (오늘 계산엔 안 쓰임)
     var y = shift(S.day || today(), -1), yd = new Date(Date.now() - 864e5);
     ((S.names && S.names.names) || []).forEach(function (n) { sh['근태'].push([yd, y, String(n), '출근', '', '', '본인', '']); });
+    // 관리자 앱 '더티 배분 만들기'로 다시 만든 배정(src 'app')이면, 그 전에 생긴 담당 변경(넘겨받음·가져옴·인원추가·근무종료 …)은 새 배정부터 다시 시작
+    var issued = S.plan && S.plan.src === 'app' ? num(S.plan.issued) : 0;
+    if (issued) all = all.filter(function (x) { return x.tab !== '변경' || x.at >= issued; });
     all.forEach(function (x) {
       var r = x.row.map(function (v, i) { if (i === 0) return new Date(x.at || Date.now()); return typeof v === 'string' && v.charAt(0) === "'" ? v.slice(1) : v === null || v === undefined ? '' : v; });
       while (r.length < HEAD[x.tab].length) r.push('');
@@ -394,6 +397,30 @@
       });
     },
     adminOff: function () { try { S.store.signOut(); } catch (e) {} },
-    _S: S, _server: SERVER, _A: A, _act: ACT
+    _S: S, _server: SERVER, _A: A, _act: ACT,
+    // 관리자 '더티 배분 만들기'(dist.js)용
+    dist: {
+      isAdmin: function () { return S.admin && !!S.user; },
+      today: function () { return S.day || today(); },
+      shift: shift,
+      planDoc: function (d) {
+        var x = d === S.day ? S.plan : other[d];
+        return x && Array.isArray(x.plan) && x.plan.length ? x : null;
+      },
+      fetchPlan: function (d) { if (d === S.day) return Promise.resolve(S.plan); return S.store.get('sup/' + d).then(function (x) { other[d] = x; return x; }); },
+      knownNames: function () { return ((S.names && S.names.names) || []).slice(); },
+      getCfg: function () { return S.store.get('sup_meta/distcfg'); },
+      setCfg: function (c) { return S.store.set('sup_meta/distcfg', { rule: c.rule, at: S.store.SERVER_TIME, uid: S.user ? S.user.uid : '' }); },
+      savePlan: function (d, plan, meta) {
+        if (!S.admin || !S.user) return Promise.reject(new Error('관리자 로그인이 필요해요'));
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) return Promise.reject(new Error('날짜가 이상해요'));
+        var sig = 'app:' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+        var doc = { date: d, plan: plan, sig: sig, src: 'app', meta: meta, by: lsGetS('dust_who') || '관리자', uid: S.user.uid, issued: S.store.SERVER_TIME, at: S.store.SERVER_TIME };
+        if (d !== S.day) other[d] = { date: d, plan: plan, sig: sig, src: 'app', meta: meta };
+        return S.store.set('sup/' + d, doc);
+      }
+    }
   };
+  var other = {};
+  function lsGetS(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
 })();
