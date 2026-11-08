@@ -22,11 +22,20 @@
   function day(v) { var m = String(v || '').trim().match(/^(\d{4})\D+(\d{1,2})\D+(\d{1,2})/); return m ? m[1] + '-' + ('0' + m[2]).slice(-2) + '-' + ('0' + m[3]).slice(-2) : ''; }
   function room(v) { var r = String(v || '').replace(/^'/, '').replace(/\.0$/, '').trim(); return ROOMS.indexOf(r) >= 0 ? r : ''; }
   function clean(v) { return String(v || '').replace(/\s+/g, ' ').trim().slice(0, 20); }
+  // 제외 객실 글 → 낱말: '2901' · '29-31층' · (11/8~) 호수 라인 '1호' · '14-16호' (모든 층의 그 라인). '1,4,14~16호' · '29,30층' 처럼 묶어 써도 됨. '모든 층'·'전층'·'라인' 글자는 무시
+  function words(s) {
+    s = String(s || '').replace(/모든\s*층|전\s*층|각\s*층/g, ' ').replace(/호\s*라인|라인/g, '호');
+    s = s.replace(/(\d{1,2}(?:\s*[-~]\s*\d{1,2})?(?:\s*[,·]\s*\d{1,2}(?:\s*[-~]\s*\d{1,2})?)*)\s*(호|층)/g, function (all, list, unit) {
+      return ' ' + list.split(/\s*[,·]\s*/).map(function (x) { return x.replace(/\s+/g, '') + unit; }).join(' ') + ' ';
+    });
+    return s.split(/[,\s/·]+/).filter(Boolean);
+  }
   function excl(s) {
     var out = {};
-    String(s || '').split(/[,\s/]+/).filter(Boolean).forEach(function (t) {
-      var f = t.match(/^(\d{1,2})(?:[-~](\d{1,2}))?층$/);
-      if (f) { var a = Number(f[1]), b = Number(f[2] || f[1]); ROOMS.forEach(function (r) { var fl = Math.floor(Number(r) / 100); if (fl >= Math.min(a, b) && fl <= Math.max(a, b)) out[r] = 1; }); return; }
+    words(s).forEach(function (t) {
+      var f = t.match(/^(\d{1,2})(?:[-~](\d{1,2}))?(층|호)$/);
+      if (f) { var a = Number(f[1]), b = Number(f[2] || f[1]), lo = Math.min(a, b), hi = Math.max(a, b);
+        ROOMS.forEach(function (r) { var v = f[3] === '층' ? Math.floor(Number(r) / 100) : Number(r) % 100; if (v >= lo && v <= hi) out[r] = 1; }); return; }
       var r = room(t); if (r) out[r] = 1;
     });
     return ROOMS.filter(function (r) { return out[r]; });
@@ -44,7 +53,7 @@
     var out = {}; (Array.isArray(v) ? v : []).forEach(function (k) { k = String(k); if (ok[k]) out[k] = 1; });
     return Object.keys(out).sort();
   }
-  function badExcl(text) { return String(text).split(/[,\s/]+/).filter(Boolean).filter(function (t) { return !/^\d{1,2}(?:[-~]\d{1,2})?층$/.test(t) && !room(t); }); }
+  function badExcl(text) { return words(text).filter(function (t) { return !/^\d{1,2}(?:[-~]\d{1,2})?(층|호)$/.test(t) && !room(t); }); }
 
   /**
    * env = { acts(): [{id, …문서}], marks(id): {객실: 문서}, isAdmin(token), workerOk(이름), saveAct(id, 문서), saveMark(id, 객실, 문서), printUrl(id) }
@@ -142,7 +151,7 @@
       if (due && due < start) throw new Error('목표일이 시작일보다 빨라요.');
       var exclText = String(x.excl || '').replace(/\s+/g, ' ').trim().slice(0, 500);
       var bad = badExcl(exclText);
-      if (bad.length) throw new Error('제외 객실을 확인해 주세요: ' + bad.slice(0, 5).join(', ') + ' (예: 2901, 3001 또는 29-31층)');
+      if (bad.length) throw new Error('제외 객실을 확인해 주세요: ' + bad.slice(0, 5).join(', ') + ' (예: 2901, 3001 · 29-31층 · 1,4,14-16호)');
       var memo = String(x.memo || '').replace(/\s+/g, ' ').trim().slice(0, 100);
       var doneName = String(x.doneName || '').replace(/\s+/g, ' ').trim().slice(0, 10);   // '완료' 이름 (예: 정비 완료, 제거 완료) — 비우면 기본
       var its = [], used = {}, names = {};

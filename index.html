@@ -235,7 +235,7 @@ main{padding:16px 16px 48px;max-width:760px;margin:0 auto;display:flex;flex-dire
 @media (prefers-reduced-motion:reduce){.confetti{display:none}.thanks div{animation:none}}
 @media (rm-light-only){.stat .big,.sum .left .n,.floor{color:color-mix(in srgb,var(--wc) 55%,#fff)}}
 </style>
-<link rel="stylesheet" href="aplus.css?v=2026.11.08-1">
+<link rel="stylesheet" href="aplus.css?v=2026.11.08-2">
 </head>
 <body>
 <header class="top">
@@ -246,9 +246,9 @@ main{padding:16px 16px 48px;max-width:760px;margin:0 auto;display:flex;flex-dire
 </header>
 <main id="main"><div class="notice"><strong>오늘 배정을 불러오고 있어요.</strong></div></main>
 <div id="sheet"></div>
-<script src="server.js?v=2026.11.08-1"></script>
-<script src="act.js?v=2026.11.08-1"></script>
-<script src="shim.js?v=2026.11.08-1"></script>
+<script src="server.js?v=2026.11.08-2"></script>
+<script src="act.js?v=2026.11.08-2"></script>
+<script src="shim.js?v=2026.11.08-2"></script>
 <script>
 var plan = null, checks = {}, tab = null, dlg = null, busyChg = false, pver = 0;  // pver: 담당 변경 횟수. 변경 전에 출발한 응답의 담당 정보는 버림
 var openCards = {}, openSecs = {};
@@ -1219,7 +1219,7 @@ setInterval(function(){ if (document.visibilityState === 'visible') refresh(); }
         '<label class="ac-lab">활동 이름<input class="ac-in" id="ac-name" maxlength="40" placeholder="예: 이불장 얼룩 점검" value="'+esc(f.name)+'"></label>'+
         '<div class="ac-lab">도면 색<div class="ac-chips">'+cs.map(function(c){ return '<button data-ac="color" data-v="'+esc(c)+'" aria-pressed="'+(f.color === c)+'"><span class="ac-dot" style="background:'+ac.colors[c]+'"></span>'+esc(c)+'</button>'; }).join('')+'</div></div>'+
         '<div class="ac-row2"><label class="ac-lab">시작일<input class="ac-in" type="date" id="ac-start" value="'+esc(f.start)+'"></label><label class="ac-lab">목표일 (선택)<input class="ac-in" type="date" id="ac-due" value="'+esc(f.due)+'"></label></div>'+
-        '<label class="ac-lab">대상에서 뺄 객실 (선택)<input class="ac-in" id="ac-excl" placeholder="예: 2901, 3001 또는 29-31층" value="'+esc(f.excl)+'"><span style="font-weight:600;font-size:12px">비워 두면 417실 전체가 대상이에요</span></label>'+
+        '<label class="ac-lab">대상에서 뺄 객실 (선택)<input class="ac-in" id="ac-excl" placeholder="예: 2901 · 29-31층 · 1,4,14-16호" value="'+esc(f.excl)+'"><span style="font-weight:600;font-size:12px">비워 두면 417실 전체가 대상이에요. 호수 라인(모든 층)은 \'1,4,14-16호\'처럼</span></label>'+
         '<label class="ac-lab">메모 (선택, 정비보조에게 보여요)<input class="ac-in" id="ac-memo2" maxlength="100" placeholder="예: 이불장 안쪽까지 확인, 얼룩은 이상으로" value="'+esc(f.memo)+'"></label>'+
         itemsForm(f)+
         '<label class="ac-lab">\'완료\' 이름 (선택)<input class="ac-in" id="ac-done" maxlength="10" placeholder="예: 정비 완료 · 제거 완료" value="'+esc(f.doneName || '')+'"><span style="font-weight:600;font-size:12px">비워 두면 \''+((f.items || []).length ? '이상 없음' : '완료')+'\'</span></label></div>';
@@ -1326,8 +1326,8 @@ setInterval(function(){ if (document.visibilityState === 'visible') refresh(); }
 </script>
 
 <script>SupShim.post();</script>
-<script src="distcalc.js?v=2026.11.08-1"></script>
-<script src="dist.js?v=2026.11.08-1"></script>
-<script type="module" src="boot.js?v=2026.11.08-1"></script>
+<script src="distcalc.js?v=2026.11.08-2"></script>
+<script src="dist.js?v=2026.11.08-2"></script>
+<script type="module" src="boot.js?v=2026.11.08-2"></script>
 </body>
 </html>

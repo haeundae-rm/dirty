@@ -139,6 +139,7 @@ const openSec = async (p, sec, sel) => until(async () => { await p.evaluate(s =>
   await until(async () => (await pM.locator('[data-ac="new"]').count()) === 1);
   await pM.click('[data-ac="new"]');
   await pM.fill('#ac-name', '식탁 노후도 조사');
+  await pM.fill('#ac-excl', '모든 층 6,8,13~15호');
   await pM.click('[data-ac="itadd"]'); await pM.fill('#ac-it-n-0', '상판 노후');
   await pM.click('[data-ac="itadd"]'); await pM.fill('#ac-it-n-1', '다리 물듬');
   await pM.click('[data-ac="itadd"]'); await pM.fill('#ac-it-n-2', '다리 흔들림');
@@ -152,6 +153,7 @@ const openSec = async (p, sec, sel) => until(async () => { await p.evaluate(s =>
   const NID = 'A' + DAY.slice(2).replace(/-/g, '') + '-1';
   ok(await until(() => { const d = db.docs.get('acts/' + NID); return d && d.items && d.items.length === 3 && d.items.map(i => i.k + i.n + i.c).join('|') === '1상판 노후빨강|2다리 물듬파랑|3다리 흔들림주황'; }), '문서 items = ①상판 빨강 · ②다리 물듬 파랑 · ③흔들림 주황 ' + JSON.stringify((db.docs.get('acts/' + NID) || {}).items));
   ok(await until(async () => /식탁 노후도 조사/.test(await txt(pM, '.ac')) && /상판 노후/.test(await txt(pM, '.ac'))), '관리자 목록에 항목 범례');
+  ok(/처리 0 \/ 298실/.test((await txt(pM, '.ac')).replace(/\s+/g, ' ')), "제외 '모든 층 6,8,13~15호' → 대상 298실 (호수 라인 제외)");
 
   console.log('④ 정비보조: 항목 여러 개 체크');
   await pA.click('.ac-top [data-x="1"], .ac-top [data-ac="list"]');
