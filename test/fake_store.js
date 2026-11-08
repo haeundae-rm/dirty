@@ -34,7 +34,7 @@ function view(s) {
     return { data: d == null ? null : dec(d), meta: { pending: p, fromCache: !online() || !s.got } };
   }
   const m = new Map((s.server || []).map(x => [x.id, { id: x.id, data: x.data, pending: false }]));
-  pending.filter(w => parentOf(w.path) === s.coll).forEach(w => m.set(idOf(w.path), { id: idOf(w.path), data: w.data, pending: true }));
+  pending.filter(w => parentOf(w.path) === s.coll).forEach(w => { if (w.op === 'delete') m.delete(idOf(w.path)); else m.set(idOf(w.path), { id: idOf(w.path), data: w.data, pending: true }); });
   const docs = [...m.values()].map(x => ({ id: x.id, data: dec(x.data), pending: x.pending }));
   return { docs, meta: { fromCache: !online() || !s.got, pending: docs.filter(d => d.pending).length } };
 }
@@ -76,6 +76,7 @@ async function flush() {
   } finally { flushing = false; }
 }
 export function set(path, data) { return write('set', path, data); }
+export function del(path) { return write('delete', path, null); }
 export function add(coll, data) { const id = 'a' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8); return { id, done: write('create', coll + '/' + id, data) }; }
 function reconnect() { Object.values(subs).forEach(s => { s.got = false; }); emitAll(); flush(); Object.values(subs).forEach(connect); }
 window.addEventListener('online', reconnect);

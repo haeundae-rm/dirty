@@ -235,7 +235,7 @@ main{padding:16px 16px 48px;max-width:760px;margin:0 auto;display:flex;flex-dire
 @media (prefers-reduced-motion:reduce){.confetti{display:none}.thanks div{animation:none}}
 @media (rm-light-only){.stat .big,.sum .left .n,.floor{color:color-mix(in srgb,var(--wc) 55%,#fff)}}
 </style>
-<link rel="stylesheet" href="aplus.css?v=2026.11.08-6">
+<link rel="stylesheet" href="aplus.css?v=2026.11.08-7">
 </head>
 <body>
 <header class="top">
@@ -246,9 +246,9 @@ main{padding:16px 16px 48px;max-width:760px;margin:0 auto;display:flex;flex-dire
 </header>
 <main id="main"><div class="notice"><strong>오늘 배정을 불러오고 있어요.</strong></div></main>
 <div id="sheet"></div>
-<script src="server.js?v=2026.11.08-6"></script>
-<script src="act.js?v=2026.11.08-6"></script>
-<script src="shim.js?v=2026.11.08-6"></script>
+<script src="server.js?v=2026.11.08-7"></script>
+<script src="act.js?v=2026.11.08-7"></script>
+<script src="shim.js?v=2026.11.08-7"></script>
 <script>
 var plan = null, checks = {}, tab = null, dlg = null, busyChg = false, pver = 0;  // pver: 담당 변경 횟수. 변경 전에 출발한 응답의 담당 정보는 버림
 var openCards = {}, openSecs = {};
@@ -1128,10 +1128,10 @@ setInterval(function(){ if (document.visibilityState === 'visible') refresh(); }
       var el = $('#sheet');
       if (!dlg || dlg.kind !== 'act' || !ac) return;
       var old = el.querySelector('.ac'), y0 = old ? old.scrollTop : 0;
-      var title = ac.stage === 'pick' ? '🗺 대상 객실 고르기' : ac.stage === 'form' ? (ac.f && ac.f.id ? '활동 수정' : '새 활동 만들기') : ac.stage === 'map' && ac.cur ? '🗺 ' + ac.cur.name : '🗺 객실 활동판';
+      var title = ac.stage === 'arch' ? '🗄 보관함' : ac.stage === 'pick' ? '🗺 대상 객실 고르기' : ac.stage === 'form' ? (ac.f && ac.f.id ? '활동 수정' : '새 활동 만들기') : ac.stage === 'map' && ac.cur ? '🗺 ' + ac.cur.name : '🗺 객실 활동판';
       var back = ac.stage === 'list' || ac.stage === 'load' || (ac.stage === 'map' && !adminTok && ac.list && ac.list.acts.filter(function(a){ return a.status === '진행'; }).length <= 1);
       var top = '<div class="ac-top"><b>'+esc(title)+'</b>'+(ac.stage === 'pick' ? '<button data-ac="pickx">← 돌아가기</button>' : back ? '<button data-x="1">닫기</button>' : '<button data-ac="list">← 목록</button>')+'</div>';
-      var body = ac.stage === 'load' ? '<div class="ac-card">불러오는 중…</div>' : ac.stage === 'list' ? listHtml() : ac.stage === 'form' ? formHtml() : ac.stage === 'pick' ? pickHtml() : mapHtml();
+      var body = ac.stage === 'load' ? '<div class="ac-card">불러오는 중…</div>' : ac.stage === 'list' ? listHtml() : ac.stage === 'form' ? formHtml() : ac.stage === 'pick' ? pickHtml() : ac.stage === 'arch' ? archHtml() : mapHtml();
       el.innerHTML = '<div class="ac">'+top+'<div class="ac-body">'+body+'</div></div>'+(ac.ask ? askHtml() : '');
       var nw = el.querySelector('.ac'); if (nw && y0 && !ac.jump) nw.scrollTop = y0; ac.jump = false;
     }
@@ -1157,7 +1157,25 @@ setInterval(function(){ if (document.visibilityState === 'visible') refresh(); }
             (a.status === '진행' ? '<button class="'+(ask === '끝내기' ? 'ask' : '')+'" data-ac="st" data-k="끝내기" data-id="'+esc(a.id)+'">'+(ask === '끝내기' ? '한 번 더 누르면 끝내요' : '끝내기')+'</button>'
               : '<button data-ac="st" data-k="다시 열기" data-id="'+esc(a.id)+'">다시 열기</button><button class="'+(ask === '보관' ? 'ask' : '')+'" data-ac="st" data-k="보관" data-id="'+esc(a.id)+'">'+(ask === '보관' ? '한 번 더 누르면 보관(목록에서 숨김)' : '보관')+'</button>') : '')+'</div></div>';
       }).join('');
+      if (adminTok) h += '<button class="ac-big" style="background:var(--surface);color:var(--ink);border:1.5px solid var(--line)" data-ac="arch">🗄 보관함 보기'+(ac.list && ac.list.archived ? ' ('+ac.list.archived+')' : '')+'</button>';
       return h;
+    }
+    // 보관함 (11/8): 보관한 활동 보기 · 다시 꺼내기 · 체크 0건인 활동만 완전 삭제
+    function archHtml(){
+      var A2 = ac.arch, h = '';
+      if (ac.err) h += '<p class="ac-err">'+esc(ac.err)+'</p>';
+      if (!A2) return h + '<div class="ac-card">불러오는 중…</div>';
+      h += '<p class="ac-note" style="margin:0 2px">보관한 활동이에요. 도면 보기·출력이 되고, \'다시 꺼내기\'로 목록에 돌려놓을 수 있어요. 체크 기록이 하나도 없는 활동(시험·잘못 만든 것)만 완전히 지울 수 있어요.</p>';
+      if (!A2.acts.length) return h + '<div class="ac-card"><p style="margin:0;font-size:16px">보관한 활동이 없어요.</p></div>';
+      return h + A2.acts.map(function(a){
+        var s2 = a.stats, ask = ac.askId === a.id ? ac.askKind : '', can = a.ready && !a.docs;
+        return '<div class="ac-item"><div class="t"><span class="ac-dot" style="background:'+a.hex+'"></span>'+esc(a.name)+'<span class="ac-badge">보관</span></div>'+
+          '<div class="m">'+esc(md(a.start))+(a.ended ? ' ~ '+esc(md(kday(a.ended))) : '')+' · 처리 '+s2.proc+' / '+s2.target+'실 ('+s2.pct+'%) · 체크 기록 '+(a.ready ? a.docs+'건' : '확인 중')+'</div>'+
+          '<div class="acts2"><button class="go" data-ac="act" data-id="'+esc(a.id)+'">도면 보기</button>'+printLink(a, false)+
+          '<button data-ac="st" data-k="꺼내기" data-id="'+esc(a.id)+'">다시 꺼내기</button>'+
+          (can ? '<button class="'+(ask === '삭제' ? 'ask' : '')+'" data-ac="st" data-k="삭제" data-id="'+esc(a.id)+'">'+(ask === '삭제' ? '한 번 더 누르면 완전히 지워요' : '🗑 완전 삭제')+'</button>'
+               : '<span class="ac-note" style="margin:0;align-self:center">'+(a.ready ? '체크 기록이 있어 삭제 불가 (실적 자료)' : '')+'</span>')+'</div></div>';
+      }).join('');
     }
     // 관리자 현황 상세: 날짜별 처리(최근 14일) · 층별 표 · 사람별 (전체 / 오늘)
     function detailHtml(a){
@@ -1374,6 +1392,7 @@ setInterval(function(){ if (document.visibilityState === 'visible') refresh(); }
       if (k === 'list') { ac.stage = 'list'; ac.cur = null; ac.err = ''; ac.f = null; draw(); acRun('actList', [adminTok || ''], function(d){ ac.list = d; draw(); }); return; }
       if (k === 'act') { openAct(id); return; }
       if (k === 'mode') { ac.mode = v; ac.err = ''; draw(); return; }
+      if (k === 'arch' && adminTok) { ac.stage = 'arch'; ac.arch = null; ac.err = ''; ac.jump = true; draw(); acRun('actArchived', [adminTok], function(d){ ac.arch = d; draw(); }, function(m){ ac.err = m; ac.arch = { acts: [] }; draw(); }); return; }
       if (k === 'full') { ac.full = !ac.full; var fs2 = floors(); if (fs2.indexOf(ac.floor) < 0) ac.floor = firstOpenFloor(); draw(); return; }
       if (k === 'fl' && v) { ac.floor = Number(v); ac.err = ''; try { lsSet('ac_floor_' + ac.cur.id, v); } catch (e2) {} draw(); var t = document.querySelector('.ac-fh'); if (t && b.classList.contains('ac-row')) t.scrollIntoView({ block: 'start', behavior: 'smooth' }); return; }
       if (k === 'room') {
@@ -1428,9 +1447,10 @@ setInterval(function(){ if (document.visibilityState === 'visible') refresh(); }
       }
       if (k === 'st') {
         var kind = b.getAttribute('data-k');
-        if (kind !== '다시 열기' && (ac.askId !== id || ac.askKind !== kind)) { ac.askId = id; ac.askKind = kind; draw(); return; }   // 끝내기·보관은 두 번 눌러야
-        ac.askId = ''; ac.askKind = '';
-        acRun('actStatus', [adminTok, id, kind], function(d){ ac.list = d; draw(); }, function(m){ ac.err = m; draw(); });
+        if (kind !== '다시 열기' && kind !== '꺼내기' && (ac.askId !== id || ac.askKind !== kind)) { ac.askId = id; ac.askKind = kind; draw(); return; }   // 끝내기·보관·삭제는 두 번 눌러야
+        ac.askId = ''; ac.askKind = ''; ac.err = '';
+        var inArch = kind === '꺼내기' || kind === '삭제';
+        acRun('actStatus', [adminTok, id, kind], function(d){ if (inArch) { ac.arch = d; try { note(kind === '삭제' ? '활동을 지웠어요' : '목록으로 꺼냈어요 (끝난 활동)'); } catch (e7) {} } else ac.list = d; draw(); }, function(m){ ac.err = m; draw(); });
       }
     });
     put();
@@ -1501,8 +1521,8 @@ setInterval(function(){ if (document.visibilityState === 'visible') refresh(); }
 </script>
 
 <script>SupShim.post();</script>
-<script src="distcalc.js?v=2026.11.08-6"></script>
-<script src="dist.js?v=2026.11.08-6"></script>
-<script type="module" src="boot.js?v=2026.11.08-6"></script>
+<script src="distcalc.js?v=2026.11.08-7"></script>
+<script src="dist.js?v=2026.11.08-7"></script>
+<script type="module" src="boot.js?v=2026.11.08-7"></script>
 </body>
 </html>

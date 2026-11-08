@@ -37,7 +37,7 @@ body{background:#5B6573;color:#16202C;font:15px/1.45 "Noto Sans KR","Apple SD Go
 <div class="wrap" id="wrap"><div class="msg" id="msg">활동 기록을 받는 중…</div></div>
 <p class="tip" id="tip" hidden></p>
 <div id="print"></div>
-<script src="act.js?v=2026.11.08-6"></script>
+<script src="act.js?v=2026.11.08-7"></script>
 <script>
 var P = null, D = null;
 var W = 3508, H = 2480, S = W / 297;   // A4 가로 300dpi, 1mm = 11.81px
@@ -325,7 +325,7 @@ window.__actStart = function(p){
 </script>
 <script type="module">
 // 활동 문서와 객실 체크를 한 번 받아 앱과 같은 계산(act.js)으로 숫자를 만듦
-import * as store from './store.js?v=2026.11.08-6';
+import * as store from './store.js?v=2026.11.08-7';
 const id = new URLSearchParams(location.search).get('id') || '';
 const fail = m => window.__actStart({ err: m });
 let act = null, marks = null, started = false;

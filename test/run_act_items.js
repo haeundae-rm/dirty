@@ -301,6 +301,36 @@ const openSec = async (p, sec, sel) => until(async () => { await p.evaluate(s =>
   ok(!cr2 || !cr2.crop, '대상이 넓은 활동(식탁)은 확대 안 함');
   await pM.click('.ac-top [data-ac="list"]').catch(() => {});
 
+  console.log('⑨ 보관함 · 다시 꺼내기 · 완전 삭제');
+  await until(async () => (await pM.locator('[data-ac="st"][data-k="끝내기"][data-id="' + WID + '"]').count()) === 1);
+  for (const [id, k] of [[WID, '끝내기'], [WID, '보관'], [NID, '끝내기'], [NID, '보관']]) {
+    await until(async () => (await pM.locator('[data-ac="st"][data-k="' + k + '"][data-id="' + id + '"]').count()) === 1);
+    await pM.click('[data-ac="st"][data-k="' + k + '"][data-id="' + id + '"]'); await pM.click('[data-ac="st"][data-k="' + k + '"][data-id="' + id + '"]');
+    await until(() => { const d = db.docs.get('acts/' + id); return d && d.status === (k === '끝내기' ? '끝남' : '보관'); });
+  }
+  ok(db.docs.get('acts/' + WID).status === '보관' && db.docs.get('acts/' + NID).status === '보관', '두 활동 보관');
+  ok(await until(async () => /보관함 보기 \(2\)/.test(await txt(pM, '[data-ac="arch"]'))), "목록 아래 '보관함 보기 (2)'");
+  await pM.click('[data-ac="arch"]');
+  ok(await until(async () => /IBK 와인 세팅/.test(await txt(pM, '.ac')) && /식탁 노후도 조사/.test(await txt(pM, '.ac')) && /체크 기록 0건/.test(await txt(pM, '.ac'))), '보관함: 두 활동 + 체크 건수');
+  ok(await pM.locator('[data-ac="st"][data-k="삭제"][data-id="' + WID + '"]').count() === 1, '체크 0건(IBK)은 완전 삭제 버튼');
+  ok(await pM.locator('[data-ac="st"][data-k="삭제"][data-id="' + NID + '"]').count() === 0 && /삭제 불가/.test(await txt(pM, '.ac')), '체크 있는 활동(식탁)은 삭제 불가');
+  const tryDel = await pM.evaluate(async (id) => new Promise(res => google.script.run.withSuccessHandler(() => res('ok')).withFailureHandler(e => res(String(e && e.message || e))).actStatus(SupShim._S && SupShim._server.adminToken_(), id, '삭제')), NID);
+  ok(/지울 수 없어요/.test(tryDel), '계산에서도 체크 있는 활동 삭제 거절: ' + tryDel);
+  await pM.click('[data-ac="act"][data-id="' + WID + '"]');
+  ok(await until(async () => /IBK 와인 세팅/.test(await txt(pM, '.ac-top'))), '보관 활동도 도면 보기');
+  await pM.click('.ac-top [data-ac="list"]'); await pM.click('[data-ac="arch"]');
+  await until(async () => (await pM.locator('[data-ac="st"][data-k="꺼내기"][data-id="' + NID + '"]').count()) === 1);
+  await pM.click('[data-ac="st"][data-k="꺼내기"][data-id="' + NID + '"]');
+  ok(await until(() => db.docs.get('acts/' + NID).status === '끝남'), '다시 꺼내기 → 끝난 활동으로 목록 복귀');
+  await until(async () => (await pM.locator('[data-ac="st"][data-k="삭제"][data-id="' + WID + '"]').count()) === 1);
+  await pM.click('[data-ac="st"][data-k="삭제"][data-id="' + WID + '"]');
+  ok(/완전히 지워요/.test(await txt(pM, '[data-ac="st"][data-k="삭제"][data-id="' + WID + '"]')), '삭제는 두 번 눌러야');
+  await pM.click('[data-ac="st"][data-k="삭제"][data-id="' + WID + '"]');
+  ok(await until(() => !db.docs.has('acts/' + WID)), 'Firestore 에서 IBK 활동 문서 지워짐');
+  ok(await until(async () => /보관한 활동이 없어요/.test(await txt(pM, '.ac'))), '보관함 비었음');
+  await pM.click('.ac-top [data-ac="list"]');
+  ok(await until(async () => /식탁 노후도 조사/.test(await txt(pM, '.ac')) && !/IBK/.test(await txt(pM, '.ac'))), '목록: 식탁(끝남) 있음 · IBK 없음');
+
   console.log('⑦ 정비보조 명단');
   await pM.click('.ac-top [data-x="1"], .ac-top [data-ac="list"]').catch(() => {});
   await pM.click('.ac-top [data-x="1"]').catch(() => {});

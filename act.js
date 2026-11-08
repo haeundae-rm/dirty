@@ -136,7 +136,8 @@
     function actList(token) {
       var admin = env.isAdmin(token);
       var list = all().filter(function (a) { return admin ? a.status !== '보관' : a.status === '진행'; });
-      return { today: today(), admin: admin, rooms: ROOMS, colors: COLORS, itemColors: ITEM_COLORS, itemMax: ITEM_MAX, acts: list.map(function (a) { return pub(a, marksOf(a.id, a.items), admin); }) };
+      var arch = admin ? all().filter(function (a) { return a.status === '보관'; }).length : 0;
+      return { archived: arch, today: today(), admin: admin, rooms: ROOMS, colors: COLORS, itemColors: ITEM_COLORS, itemMax: ITEM_MAX, acts: list.map(function (a) { return pub(a, marksOf(a.id, a.items), admin); }) };
     }
     function actGet(id, token) {
       var admin = env.isAdmin(token), a = find(id);
@@ -206,13 +207,29 @@
       }
       var out = actList(token); out.saved = id; return out;
     }
+    /** 보관함 (11/8): 보관한 활동 + 체크 건수(취소 포함 문서 수) — 체크가 하나도 없는 활동만 완전 삭제 가능 */
+    function actArchived(token) {
+      needAdmin(token);
+      return { today: today(), acts: all().filter(function (a) { return a.status === '보관'; }).reverse().map(function (a) {
+        var o = pub(a, marksOf(a.id, a.items), true), raw = env.marks(a.id) || {};
+        o.docs = Object.keys(raw).length; o.ready = env.marksReady ? env.marksReady(a.id) : true; return o;
+      }) };
+    }
     function actStatus(token, id, kind) {
       needAdmin(token);
-      if (['끝내기', '다시 열기', '보관', '잠그기', '잠금 풀기'].indexOf(kind) < 0) throw new Error('처리 방법을 확인해 주세요.');
+      if (['끝내기', '다시 열기', '보관', '잠그기', '잠금 풀기', '꺼내기', '삭제'].indexOf(kind) < 0) throw new Error('처리 방법을 확인해 주세요.');
       var a = find(id);
       if (!a) throw new Error('활동을 찾지 못했어요.');
       if (kind === '끝내기' && a.status !== '진행') throw new Error('진행 중인 활동만 끝낼 수 있어요.');
       if (kind === '다시 열기' && a.status === '진행') throw new Error('이미 진행 중이에요.');
+      if (kind === '꺼내기') { if (a.status !== '보관') throw new Error('보관한 활동만 꺼낼 수 있어요.'); env.saveAct(a.id, docOf(a, { status: '끝남', ended: a.ended ? new Date(a.ended) : new Date() })); return actArchived(token); }
+      if (kind === '삭제') {
+        if (a.status !== '보관') throw new Error('보관함에 있는 활동만 지울 수 있어요.');
+        if (env.marksReady && !env.marksReady(a.id)) throw new Error('체크 기록을 확인하는 중이에요. 잠시 뒤 다시 눌러 주세요.');
+        var n = Object.keys(env.marks(a.id) || {}).length;
+        if (n) throw new Error('체크 기록이 ' + n + '건 있어서 지울 수 없어요. 실적 자료라 보관만 돼요.');
+        env.deleteAct(a.id); return actArchived(token);
+      }
       if (kind === '잠그기' || kind === '잠금 풀기') { env.saveAct(a.id, docOf(a, { lockAt: kind === '잠그기' ? '__now' : null })); return actGet(a.id, token); }   // '__now' = 서버 시각
       env.saveAct(a.id, docOf(a, kind === '끝내기' ? { status: '끝남', ended: new Date() } : kind === '다시 열기' ? { status: '진행', ended: null } : { status: '보관' }));
       return actList(token);
@@ -227,6 +244,6 @@
       d.endedDay = a.ended ? fmt(new Date(a.ended), 'yyyy-MM-dd') : '';
       return { d: d };
     }
-    return { actList: actList, actGet: actGet, actMark: actMark, actSave: actSave, actStatus: actStatus, printData: printData, rooms: ROOMS, colors: COLORS, itemColors: ITEM_COLORS, room: room };
+    return { actArchived: actArchived, actList: actList, actGet: actGet, actMark: actMark, actSave: actSave, actStatus: actStatus, printData: printData, rooms: ROOMS, colors: COLORS, itemColors: ITEM_COLORS, room: room };
   };
 })(typeof window !== 'undefined' ? window : globalThis);

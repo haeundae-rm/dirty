@@ -8,7 +8,7 @@
 // 관리자 확인은 Firebase 로그인(소장·부소장 계정) + 보안 규칙. 화면의 adminTok 은 '관리자 모드' 표시용 값일 뿐
 (function () {
   'use strict';
-  var APP_VER = '2026.11.08-6';
+  var APP_VER = '2026.11.08-7';
   var TZ = 'Asia/Seoul';
   var API_URL = 'https://script.google.com/macros/s/AKfycbyPvhvScAcDfGqyxdK9pvr8vtewfjAkHsbRBiN04GCNbzE4HL_zZHODWPPb4xUHQb0LCw/exec';
   var ADMINS = { '소장': 'unieshaeundae+admin@gmail.com', '부소장': 'unieshaeundae+sub@gmail.com' };
@@ -22,7 +22,7 @@
   var TABS = ['체크', '변경', '근태'];
   var LOCAL = ['getData', 'getState', 'setCheck', 'toggle', 'change', 'addWorker', 'moveMaids', 'attend', 'attEdit'];
   var REMOTE = ['myMonth', 'monthSheet'];
-  var ACTS = ['actList', 'actGet', 'actMark', 'actSave', 'actStatus'];
+  var ACTS = ['actList', 'actGet', 'actMark', 'actSave', 'actStatus', 'actArchived'];
 
   var S = {
     store: null, user: null, admin: false, day: '', subs: [],
@@ -104,7 +104,7 @@
       if (!A.got && !docs.length && meta && meta.fromCache) { cacheWait('acts', function () { A.got = true; actChanged(); }); return; }   // 휴대폰 보관함이 비어 있을 때 첫 '빈 결과'는 기다림
       var m = {}; docs.forEach(function (d) { m[d.id] = d.data; });
       A.docs = m; A.got = true;
-      Object.keys(m).forEach(function (id) { if (m[id] && m[id].status !== '보관') marksSub(id); });
+      Object.keys(m).forEach(function (id) { if (m[id] && (m[id].status !== '보관' || S.admin)) marksSub(id); });   // 관리자는 보관함 활동 체크도 받음 (보관함 보기·삭제 가능 여부)
       actChanged();
     }, function (e) { A.got = true; report('listen', '활동판 ' + (e && (e.code || e.message))); actChanged(); });
   }
@@ -128,6 +128,12 @@
   var ACT = window.makeActServer({
     acts: function () { return Object.keys(A.docs).filter(function (k) { return A.docs[k]; }).map(function (k) { var o = { id: k }, d = A.docs[k]; for (var x in d) o[x] = d[x]; return o; }); },
     marks: function (id) { return A.marks[id] || {}; },
+    marksReady: function (id) { return !!A.mgot[id]; },
+    deleteAct: function (id) {
+      if (!S.user || !S.admin) throw new Error('관리자 로그인이 필요해요.');
+      delete A.docs[id];
+      S.store.del('acts/' + id).then(null, function (e) { actRejected('활동 삭제 ' + id, e); });
+    },
     isAdmin: function (t) { return S.admin && !!t && t === TOKEN; },
     workerOk: function (nm) { try { var st = SERVER.state_(); return (st.workers || []).some(function (w) { return w.name === nm; }) || (st.known || []).indexOf(nm) >= 0; } catch (e) { return false; } },
     printUrl: function (id) { return 'print.html?id=' + encodeURIComponent(id); },
@@ -250,7 +256,17 @@
     if (ACTS.indexOf(fn) >= 0) {
       actStart();
       var runA = function () { setTimeout(function () { var res; try { res = clone(ACT[fn].apply(null, args)); } catch (e) { bad(e); return; } done(res); }, 0); };
-      var goA = function () { if (actReady()) runA(); else A.waiting.push(runA); };
+      var archOk = function () {   // 보관함·삭제: 보관한 활동 체크도 받은 뒤 (관리자만, 8초까지)
+        if (fn !== 'actArchived' && !(fn === 'actStatus' && args[2] === '삭제')) return true;
+        var ids = Object.keys(A.docs).filter(function (k) { return A.docs[k] && A.docs[k].status === '보관'; });
+        ids.forEach(marksSub);
+        return ids.every(function (k) { return A.mgot[k]; });
+      };
+      var goA = function () {
+        if (!actReady()) { A.waiting.push(goA); return; }
+        if (archOk()) { runA(); return; }
+        var t0 = Date.now(), iv = setInterval(function () { if (archOk() || Date.now() - t0 > 8000) { clearInterval(iv); runA(); } }, 150);
+      };
       if (S.ready) goA(); else S.waiting.push(goA);
       return;
     }

@@ -96,7 +96,7 @@ function make() {
     if (op === 'write') {
       const why = canWrite(a.uid, a.op, a.path, a.data);
       if (why) { log.rejects.push({ path: a.path, why, uid: a.uid, data: a.data }); return { error: 'permission-denied' }; }
-      docs.set(a.path, stamp(a.data, Date.now())); log.writes.push({ path: a.path, uid: a.uid });
+      if (a.op === 'delete') docs.delete(a.path); else docs.set(a.path, stamp(a.data, Date.now())); log.writes.push({ path: a.path, uid: a.uid, op: a.op });
       await push([a.path]);
       return {};
     }

@@ -5,7 +5,7 @@ import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.19.0/fireba
 import { getAuth, onAuthStateChanged, signInAnonymously, signInWithEmailAndPassword, signOut as fbSignOut } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-auth.js';
 import {
   initializeFirestore, persistentLocalCache, persistentMultipleTabManager,
-  doc, collection, onSnapshot, getDoc, getDocs, setDoc, query, where, serverTimestamp, Timestamp
+  doc, collection, onSnapshot, getDoc, getDocs, setDoc, deleteDoc, query, where, serverTimestamp, Timestamp
 } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js';
 
 const app = initializeApp({
@@ -65,4 +65,5 @@ export function listenQuery(c, w, cb, onErr) {
 export async function get(path) { const s = await getDoc(ref(path)); return s.exists() ? snapData(s) : null; }
 export async function getQuery(c, w) { const s = await getDocs(q(c, w)); return s.docs.map(d => ({ id: d.id, data: snapData(d) })); }
 export function set(path, data) { return setDoc(ref(path), enc(data)); }
+export function del(path) { return deleteDoc(ref(path)); }   // 활동판 시험 활동 완전 삭제 (11/8, 관리자만 · 체크 0건)
 export function add(c, data) { const r = doc(col(c)); return { id: r.id, done: setDoc(r, enc(data)) }; }
