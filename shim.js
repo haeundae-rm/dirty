@@ -8,7 +8,7 @@
 // 관리자 확인은 Firebase 로그인(소장·부소장 계정) + 보안 규칙. 화면의 adminTok 은 '관리자 모드' 표시용 값일 뿐
 (function () {
   'use strict';
-  var APP_VER = '2026.11.07-2';
+  var APP_VER = '2026.11.08-1';
   var TZ = 'Asia/Seoul';
   var API_URL = 'https://script.google.com/macros/s/AKfycbyPvhvScAcDfGqyxdK9pvr8vtewfjAkHsbRBiN04GCNbzE4HL_zZHODWPPb4xUHQb0LCw/exec';
   var ADMINS = { '소장': 'unieshaeundae+admin@gmail.com', '부소장': 'unieshaeundae+sub@gmail.com' };
@@ -133,8 +133,10 @@
     printUrl: function (id) { return 'print.html?id=' + encodeURIComponent(id); },
     saveMark: function (id, r, x) {
       if (!S.user) throw new Error('아직 연결 중이에요. 잠시 뒤 다시 눌러 주세요.');
-      (A.marks[id] = A.marks[id] || {})[r] = { s: x.s, m: x.m, w: x.w, by: x.by, at: Date.now() };   // 화면에 바로 (서버 확인은 뒤에)
-      S.store.set('acts/' + id + '/marks/' + r, { s: x.s, m: x.m, w: x.w, by: x.by, at: S.store.SERVER_TIME, clientAt: new Date(), uid: S.user.uid })
+      var loc = { s: x.s, m: x.m, w: x.w, by: x.by, at: Date.now() }, doc = { s: x.s, m: x.m, w: x.w, by: x.by, at: S.store.SERVER_TIME, clientAt: new Date(), uid: S.user.uid };
+      if (x.t && x.t.length) { loc.t = x.t.slice(); doc.t = x.t.slice(); }   // 점검 항목 번호 (2026-11-08)
+      (A.marks[id] = A.marks[id] || {})[r] = loc;   // 화면에 바로 (서버 확인은 뒤에)
+      S.store.set('acts/' + id + '/marks/' + r, doc)
         .then(null, function (e) { actRejected(r + '호', e); });
     },
     saveAct: function (id, d) {

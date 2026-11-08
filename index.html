@@ -235,7 +235,7 @@ main{padding:16px 16px 48px;max-width:760px;margin:0 auto;display:flex;flex-dire
 @media (prefers-reduced-motion:reduce){.confetti{display:none}.thanks div{animation:none}}
 @media (rm-light-only){.stat .big,.sum .left .n,.floor{color:color-mix(in srgb,var(--wc) 55%,#fff)}}
 </style>
-<link rel="stylesheet" href="aplus.css?v=2026.11.07-2">
+<link rel="stylesheet" href="aplus.css?v=2026.11.08-1">
 </head>
 <body>
 <header class="top">
@@ -246,9 +246,9 @@ main{padding:16px 16px 48px;max-width:760px;margin:0 auto;display:flex;flex-dire
 </header>
 <main id="main"><div class="notice"><strong>오늘 배정을 불러오고 있어요.</strong></div></main>
 <div id="sheet"></div>
-<script src="server.js?v=2026.11.07-2"></script>
-<script src="act.js?v=2026.11.07-2"></script>
-<script src="shim.js?v=2026.11.07-2"></script>
+<script src="server.js?v=2026.11.08-1"></script>
+<script src="act.js?v=2026.11.08-1"></script>
+<script src="shim.js?v=2026.11.08-1"></script>
 <script>
 var plan = null, checks = {}, tab = null, dlg = null, busyChg = false, pver = 0;  // pver: 담당 변경 횟수. 변경 전에 출발한 응답의 담당 정보는 버림
 var openCards = {}, openSecs = {};
@@ -934,6 +934,29 @@ setInterval(function(){ if (document.visibilityState === 'visible') refresh(); }
 .ac-t.i{background:#FDECEC;border-color:#C62828;color:#8E1B1B}
 .ac-t.i::after{content:"!";position:absolute;top:2px;right:7px;font:900 15px var(--f-body);color:#C62828}
 .ac-t.x{opacity:.45;cursor:default;border-style:dashed}
+/* 점검 항목 (2026-11-08): 번호 동그라미 · 지난 날짜 잠금 */
+.ac-t.k{background:var(--surface);border-color:var(--ink);color:var(--ink)}
+.ac-t.k::after{content:none}
+.ac-dots{display:flex;justify-content:center;flex-wrap:wrap;gap:3px;margin-top:4px}
+.ac-dots b,.ac-n{display:inline-block;width:20px;height:20px;border-radius:50%;color:#fff;font:800 12px/20px var(--f-num);text-align:center;flex:0 0 auto}
+.ac-t.l::before{content:"🔒";position:absolute;top:2px;left:4px;font-size:10px;opacity:.75}
+.ac-legend{display:flex;flex-wrap:wrap;gap:6px 12px;margin-top:8px;font-size:13px;font-weight:700}
+.ac-legend span{display:inline-flex;align-items:center;gap:5px}
+.ac-legend .z{color:var(--muted);font-weight:600}
+.ac-ik{display:flex;flex-direction:column;gap:8px}
+.ac-ik button{display:flex;align-items:center;gap:10px;min-height:56px;border-radius:14px;border:2.5px solid var(--line);background:var(--surface);color:var(--ink);font:800 17px var(--f-body);padding:0 14px;cursor:pointer;text-align:left}
+.ac-ik button .ac-n{width:26px;height:26px;font-size:14px;line-height:26px}
+.ac-ik button .ck{margin-left:auto;font-size:20px;opacity:0}
+.ac-ik button[aria-pressed="true"]{border-color:var(--ik);background:color-mix(in srgb,var(--ik) 10%,var(--surface))}
+.ac-ik button[aria-pressed="true"] .ck{opacity:1;color:var(--ik)}
+.ac-its{display:flex;flex-direction:column;gap:8px}
+.ac-its .r{display:grid;grid-template-columns:26px 1fr 92px 44px;gap:6px;align-items:center}
+.ac-its select{min-height:52px;border-radius:12px;border:2px solid var(--line);background:var(--bg);color:var(--ink);font:700 15px var(--f-body);padding:0 6px}
+.ac-its .del{min-height:52px;border-radius:12px;border:1.5px solid var(--line);background:var(--surface);color:var(--muted);font:800 18px var(--f-body);cursor:pointer}
+.ac-its .add{min-height:46px;border-radius:12px;border:2px dashed var(--line);background:transparent;color:var(--ink);font:800 15px var(--f-body);cursor:pointer}
+.ac-grp{display:flex;flex-direction:column;gap:4px;border-top:1px solid var(--line);padding-top:8px;margin-top:8px}
+.ac-grp:first-of-type{border-top:0;margin-top:0;padding-top:0}
+.ac-grp .rs{font:600 14px/1.6 var(--f-num);color:var(--ink);word-break:keep-all}
 .ac-t.p{opacity:.65}
 .ac-list{display:flex;flex-direction:column;gap:6px;font-size:14px}
 .ac-list div{display:flex;justify-content:space-between;gap:8px;border-top:1px solid var(--line);padding-top:6px}
@@ -1014,7 +1037,7 @@ setInterval(function(){ if (document.visibilityState === 'visible') refresh(); }
     function open(){
       dlg = { kind: 'act' }; ac = { stage: 'load', err: '', mode: 'done', pend: {}, queue: [] }; draw();
       acRun('actList', [adminTok || ''], function(d){
-        ac.list = d; ac.rooms = d.rooms; ac.colors = d.colors;
+        ac.list = d; ac.rooms = d.rooms; ac.colors = d.colors; ac.icolors = d.itemColors || {}; ac.imax = d.itemMax || 5;
         var live = d.acts.filter(function(a){ return a.status === '진행'; });
         if (!adminTok && live.length === 1) openAct(live[0].id); else { ac.stage = 'list'; draw(); }
       }, function(m){ ac.stage = 'list'; ac.err = m; ac.list = { acts: [] }; draw(); });
@@ -1037,9 +1060,27 @@ setInterval(function(){ if (document.visibilityState === 'visible') refresh(); }
     function isEx(r){ return ac.cur && ac.cur.excl.indexOf(r) >= 0; }
     function firstOpenFloor(){ var fs = floors(); for (var i = 0; i < fs.length; i++) if (roomsOf(fs[i]).some(function(r){ return !isEx(r) && !markOf(r); })) return fs[i]; return fs[0]; }
     function stats(){   // 서버 숫자 + 아직 저장 중인 체크까지 반영
-      var t = 0, d = 0, is = 0;
-      (ac.rooms || []).forEach(function(r){ if (isEx(r)) return; t++; var m = markOf(r); if (m) { if (m.s === '이상') is++; else d++; } });
-      return { target: t, done: d, issue: is, proc: d + is, pct: t ? Math.round((d + is) / t * 1000) / 10 : 0 };
+      var t = 0, d = 0, is = 0, bi = {};
+      its().forEach(function(i){ bi[i.k] = 0; });
+      (ac.rooms || []).forEach(function(r){ if (isEx(r)) return; t++; var m = markOf(r); if (m) { if (m.s === '이상') { is++; (m.t || []).forEach(function(k){ if (k in bi) bi[k]++; }); } else d++; } });
+      return { target: t, done: d, issue: is, proc: d + is, pct: t ? Math.round((d + is) / t * 1000) / 10 : 0, items: bi };
+    }
+    // ---------- 점검 항목 · 잠금 (2026-11-08)
+    function its(){ return (ac && ac.cur && ac.cur.items) || []; }
+    function itemOf(k){ return its().filter(function(i){ return i.k === k; })[0]; }
+    function tagsOf(m){ return m && m.s === '이상' ? (m.t || []).filter(function(k){ return itemOf(k); }) : []; }
+    function dots(t){ return '<span class="ac-dots">'+t.map(function(k){ var i = itemOf(k); return '<b style="background:'+i.hex+'">'+esc(k)+'</b>'; }).join('')+'</span>'; }
+    function kday(at){ try { return new Date(at).toLocaleDateString('en-CA', { timeZone: 'Asia/Seoul' }); } catch (e) { return ''; } }
+    function locked(r, m){   // 지난 날짜에 체크된 칸 — 근무자는 못 바꿈 (관리자는 됨)
+      if (adminTok || !m || !ac.cur || ac.pend[r] || !m.at) return false;
+      var d = kday(m.at), t = ac.cur.today || (ac.list && ac.list.today) || '';
+      return !!(d && t && d < t);
+    }
+    function legend(items, cnt, hex, done){
+      if (!items || !items.length) return '';
+      return '<div class="ac-legend"><span><span class="ac-dot" style="background:'+hex+'"></span>이상 없음 <b>'+(done || 0)+'</b></span>'+items.map(function(i){
+        var n = (cnt || {})[i.k] || 0; return '<span class="'+(n ? '' : 'z')+'"><b class="ac-n" style="background:'+i.hex+'">'+esc(i.k)+'</b>'+esc(i.n)+' <b>'+n+'</b></span>';
+      }).join('')+'</div>';
     }
     // ---------- 그리기
     function draw(){
@@ -1068,7 +1109,7 @@ setInterval(function(){ if (document.visibilityState === 'visible') refresh(); }
       h += L.map(function(a){
         var s = a.stats, ask = ac.askId === a.id ? ac.askKind : '';
         return '<div class="ac-item"><div class="t"><span class="ac-dot" style="background:'+a.hex+'"></span>'+esc(a.name)+(a.status === '진행' ? '<span class="ac-badge live">진행 중</span>' : '<span class="ac-badge">'+esc(a.status)+'</span>')+'</div>'+
-          '<div class="m">처리 '+s.proc+' / '+s.target+'실 ('+s.pct+'%)'+(s.issue ? ' · <b style="color:#C62828">이상 '+s.issue+'</b>' : '')+(s.today ? ' · 오늘 '+s.today+'실' : '')+(a.due ? ' · 목표 '+md(a.due) : '')+'</div>'+bar(s, a.hex)+
+          '<div class="m">처리 '+s.proc+' / '+s.target+'실 ('+s.pct+'%)'+(s.issue ? ' · <b style="color:#C62828">이상 '+s.issue+'</b>' : '')+(s.today ? ' · 오늘 '+s.today+'실' : '')+(a.due ? ' · 목표 '+md(a.due) : '')+'</div>'+bar(s, a.hex)+legend(a.items, s.items, a.hex, s.done)+
           (a.memo ? '<div class="m">'+esc(a.memo)+'</div>' : '')+
           '<div class="acts2"><button class="go" data-ac="act" data-id="'+esc(a.id)+'">'+(adminTok ? '도면 열기' : '체크하러 가기')+'</button>'+printLink(a, false)+
           (adminTok ? '<button data-ac="edit" data-id="'+esc(a.id)+'">수정</button>'+
@@ -1108,10 +1149,12 @@ setInterval(function(){ if (document.visibilityState === 'visible') refresh(); }
       var a = ac.cur; if (!a) return '<div class="ac-card">'+(ac.err ? '<p class="ac-err">'+esc(ac.err)+'</p>' : '도면 불러오는 중…')+'</div>';
       var s = stats(), hex = a.hex, fs = floors(), f = ac.floor, h = '';
       h += '<div class="ac-card" style="--ac:'+hex+'"><h3><span class="ac-dot" style="background:'+hex+'"></span>'+esc(a.name)+'</h3>'+
-        '<div class="ac-sum">처리 <b>'+s.proc+'</b> / '+s.target+'실 · <b>'+s.pct+'%</b>'+(s.issue ? ' · <span style="color:#C62828">이상 '+s.issue+'</span>' : '')+'</div>'+bar(s, hex)+
+        '<div class="ac-sum">처리 <b>'+s.proc+'</b> / '+s.target+'실 · <b>'+s.pct+'%</b>'+(s.issue ? ' · <span style="color:#C62828">'+(its().length ? '항목 있음 ' : '이상 ')+s.issue+'</span>' : '')+'</div>'+bar(s, hex)+legend(its(), s.items, hex, s.done)+
         (a.due ? '<p class="ac-note">목표 '+md(a.due)+(a.memo ? ' · '+esc(a.memo) : '')+'</p>' : a.memo ? '<p class="ac-note">'+esc(a.memo)+'</p>' : '')+'</div>';
       h += printLink(a, true);
       if (a.status !== '진행') h += '<div class="ac-card"><p class="ac-err" style="color:var(--muted)">끝난 활동이라 보기만 할 수 있어요.</p></div>';
+      else if (its().length) h += '<div class="ac-seg"><button data-ac="mode" data-v="done" aria-pressed="'+(ac.mode === 'done')+'">✔ 이상 없음</button><button class="iss" data-ac="mode" data-v="issue" aria-pressed="'+(ac.mode === 'issue')+'">🎨 항목 체크</button></div>'+
+        '<p class="ac-note" style="margin:-4px 2px 0">'+(ac.mode === 'issue' ? '객실을 누르면 해당하는 항목을 모두 골라요. 끝나면 \'이상 없음\'으로 돌아오세요.' : '객실을 누르면 이상 없음, 한 번 더 누르면 취소돼요.')+'</p>';
       else h += '<div class="ac-seg"><button data-ac="mode" data-v="done" aria-pressed="'+(ac.mode === 'done')+'">✔ 완료 체크</button><button class="iss" data-ac="mode" data-v="issue" aria-pressed="'+(ac.mode === 'issue')+'">❗ 이상 표시</button></div>'+
         '<p class="ac-note" style="margin:-4px 2px 0">'+(ac.mode === 'issue' ? '객실을 누르면 이상 내용을 적어요. 끝나면 \'완료 체크\'로 돌아오세요.' : '객실을 누르면 완료, 한 번 더 누르면 취소돼요.')+'</p>';
       if (ac.err) h += '<p class="ac-err">'+esc(ac.err)+'</p>';
@@ -1119,25 +1162,45 @@ setInterval(function(){ if (document.visibilityState === 'visible') refresh(); }
       var rs = roomsOf(f), fd = rs.filter(function(r){ return !isEx(r) && markOf(r); }).length, ft = rs.filter(function(r){ return !isEx(r); }).length, i = fs.indexOf(f);
       h += '<div class="ac-card" style="--ac:'+hex+'"><div class="ac-fh"><button data-ac="fl" data-v="'+(fs[i - 1] || '')+'"'+(i > 0 ? '' : ' disabled')+' aria-label="위층">▲</button><b>'+f+'층 <span style="font-size:15px;color:var(--muted)">'+fd+' / '+ft+'</span></b><button data-ac="fl" data-v="'+(fs[i + 1] || '')+'"'+(i < fs.length - 1 ? '' : ' disabled')+' aria-label="아래층">▼</button></div>'+
         '<div class="ac-tiles">'+rs.map(function(r){
-          var m = markOf(r), x = isEx(r), cls = x ? ' x' : m ? (m.s === '이상' ? ' i' : ' d') : '', p = ac.pend[r] ? ' p' : '';
-          var sub = x ? '대상 아님' : m ? (m.s === '이상' ? (m.memo || '이상') : (m.w && m.w !== who() ? m.w : '완료')) : '';
-          return '<button class="ac-t'+cls+p+'" data-ac="room" data-r="'+esc(r)+'"'+(x ? ' disabled' : '')+'>'+esc(r)+(sub ? '<small>'+esc(sub)+'</small>' : '')+'</button>';
+          var m = markOf(r), x = isEx(r), tg = tagsOf(m), cls = x ? ' x' : m ? (m.s === '이상' ? (tg.length ? ' i k' : ' i') : ' d') : '', p = ac.pend[r] ? ' p' : '', lk = !x && locked(r, m) ? ' l' : '';
+          var sub = x ? '대상 아님' : m ? (m.s === '이상' ? (tg.length ? '' : (m.memo || '이상')) : (m.w && m.w !== who() ? m.w : its().length ? '이상 없음' : '완료')) : '';
+          return '<button class="ac-t'+cls+p+lk+'" data-ac="room" data-r="'+esc(r)+'"'+(tg.length ? ' style="border-color:'+itemOf(tg[0]).hex+'"' : '')+(x ? ' disabled' : '')+'>'+esc(r)+(tg.length ? dots(tg) : '')+(sub ? '<small>'+esc(sub)+'</small>' : '')+'</button>';
         }).join('')+'</div></div>';
       // 전체 도면 (작게) — 줄을 누르면 그 층으로
       h += '<div class="ac-card" style="--ac:'+hex+'"><h3 style="font-size:15px">전체 도면 <span style="font-weight:600;color:var(--muted);font-size:13px">줄을 누르면 그 층으로</span></h3><div class="ac-map">'+fs.map(function(fl){
           var rr = roomsOf(fl), byLine = {}; rr.forEach(function(r){ byLine[Number(r) % 100] = r; });
           var cells = '', t = 0, d = 0;
-          for (var ln = 1; ln <= 17; ln++) { var r = byLine[ln]; if (!r) { cells += '<i class="c e"></i>'; continue; } var m = markOf(r), x = isEx(r); if (!x) { t++; if (m) d++; } cells += '<i class="c'+(x ? ' x' : m ? (m.s === '이상' ? ' i' : ' d') : '')+'"></i>'; }
+          for (var ln = 1; ln <= 17; ln++) { var r = byLine[ln]; if (!r) { cells += '<i class="c e"></i>'; continue; } var m = markOf(r), x = isEx(r); if (!x) { t++; if (m) d++; } var tg = tagsOf(m), bg = ''; if (tg.length) bg = ' style="background:linear-gradient(90deg,'+tg.map(function(k, j){ var c = itemOf(k).hex; return c+' '+(j / tg.length * 100)+'% '+((j + 1) / tg.length * 100)+'%'; }).join(',')+')"'; cells += '<i class="c'+(x ? ' x' : m ? (m.s === '이상' ? ' i' : ' d') : '')+'"'+bg+'></i>'; }
           return '<button class="ac-row'+(fl === f ? ' on' : '')+'" data-ac="fl" data-v="'+fl+'"><span class="fl">'+fl+'</span><span class="cells">'+cells+'</span><span class="pc">'+(t ? Math.round(d / t * 100) : 0)+'%</span></button>';
         }).join('')+'</div></div>';
       // 이상 객실 목록
       var iss = (ac.rooms || []).filter(function(r){ var m = markOf(r); return m && m.s === '이상'; });
-      if (iss.length) h += '<div class="ac-card"><h3 style="font-size:15px;color:#C62828">❗ 이상 있는 객실 '+iss.length+'</h3><div class="ac-list">'+iss.map(function(r){ var m = markOf(r); return '<div><span><b>'+esc(r)+'</b> '+esc(m.memo || '')+'</span><span style="color:var(--muted)">'+esc(m.w || '')+'</span></div>'; }).join('')+'</div></div>';
+      if (iss.length && its().length) {   // 항목별 객실 목록 (교체·수리 업체에 넘길 목록)
+        h += '<div class="ac-card"><h3 style="font-size:15px">🎨 항목별 객실</h3>'+its().map(function(i){
+          var rs = iss.filter(function(r){ return tagsOf(markOf(r)).indexOf(i.k) >= 0; });
+          return '<div class="ac-grp"><div><b class="ac-n" style="background:'+i.hex+'">'+esc(i.k)+'</b> <b>'+esc(i.n)+'</b> · '+rs.length+'실</div>'+(rs.length ? '<div class="rs">'+rs.map(esc).join(' · ')+'</div>' : '')+'</div>';
+        }).join('');
+        var mm = iss.filter(function(r){ return markOf(r).memo; });
+        if (mm.length) h += '<div class="ac-grp"><div><b>메모</b></div><div class="ac-list">'+mm.map(function(r){ var m = markOf(r); return '<div><span><b>'+esc(r)+'</b> '+esc(m.memo)+'</span><span style="color:var(--muted)">'+esc(m.w || '')+'</span></div>'; }).join('')+'</div></div>';
+        h += '</div>';
+      } else if (iss.length) h += '<div class="ac-card"><h3 style="font-size:15px;color:#C62828">❗ 이상 있는 객실 '+iss.length+'</h3><div class="ac-list">'+iss.map(function(r){ var m = markOf(r); return '<div><span><b>'+esc(r)+'</b> '+esc(m.memo || '')+'</span><span style="color:var(--muted)">'+esc(m.w || '')+'</span></div>'; }).join('')+'</div></div>';
       if (adminTok) h += detailHtml(a);
       return h;
     }
     function askHtml(){
-      var r = ac.ask.room, m = markOf(r), memo = ac.ask.memo;
+      var r = ac.ask.room, m = markOf(r), memo = ac.ask.memo, X = '<button class="ac-big" style="background:var(--surface);color:var(--ink);border:1.5px solid var(--line)" data-ac="askx">닫기</button>';
+      if (ac.ask.kind === 'lock') return '<div class="ac-pop"><div class="pn"><h3>🔒 '+esc(r)+'호 · '+esc(md(ac.ask.day))+' 체크됨</h3><p class="ac-note" style="margin:0;font-size:16px">지난 날짜 기록이라 바꿀 수 없어요. 고칠 게 있으면 관리자에게 말씀해 주세요.</p>'+X+'</div></div>';
+      if (ac.ask.kind === 'other') return '<div class="ac-pop"><div class="pn"><h3>'+esc(r)+'호 · '+esc(ac.ask.w)+' 님이 체크함</h3><p class="ac-note" style="margin:0;font-size:16px">오늘 다른 분이 체크한 객실이에요. 정말 지울까요?</p>'+
+        '<button class="ac-big" style="background:var(--warn)" data-ac="unmark">체크 지우기</button>'+X+'</div></div>';
+      if (its().length) {
+        var sel = ac.ask.t || [];
+        return '<div class="ac-pop"><div class="pn"><h3>'+esc(r)+'호 · 해당하는 것 모두 누르기</h3>'+
+          '<div class="ac-ik">'+its().map(function(i){ var on = sel.indexOf(i.k) >= 0; return '<button data-ac="tg" data-v="'+esc(i.k)+'" aria-pressed="'+on+'" style="--ik:'+i.hex+'"><b class="ac-n" style="background:'+i.hex+'">'+esc(i.k)+'</b>'+esc(i.n)+'<span class="ck">✓</span></button>'; }).join('')+'</div>'+
+          '<input class="ac-in" id="ac-memo" maxlength="30" placeholder="메모 (선택) 예: 의자 4개 중 1개" value="'+esc(memo || '')+'">'+
+          (ac.ask.err ? '<p class="ac-err" style="margin:0">'+esc(ac.ask.err)+'</p>' : '')+
+          '<button class="ac-big" style="background:#C62828" data-ac="issave">'+(sel.length ? sel.length+'개 저장' : '저장')+'</button>'+
+          (m ? '<div class="ac-row2"><button class="ac-big green" data-ac="todone">✔ 이상 없음으로</button><button class="ac-big" style="background:var(--muted)" data-ac="unmark">체크 지우기</button></div>' : '')+X+'</div></div>';
+      }
       return '<div class="ac-pop"><div class="pn"><h3>'+esc(r)+'호 · 이상 있음</h3><p class="ac-note" style="margin:0;font-size:15px">무엇이 문제인지 골라 주세요. 직접 적어도 돼요.</p>'+
         '<div class="ac-chips">'+MEMOS.map(function(x){ return '<button data-ac="memo" data-v="'+esc(x)+'" aria-pressed="'+(memo === x)+'">'+esc(x)+'</button>'; }).join('')+'</div>'+
         '<input class="ac-in" id="ac-memo" maxlength="30" placeholder="예: 이불장 안쪽 얼룩" value="'+esc(memo || '')+'">'+
@@ -1152,22 +1215,35 @@ setInterval(function(){ if (document.visibilityState === 'visible') refresh(); }
         '<div class="ac-lab">도면 색<div class="ac-chips">'+cs.map(function(c){ return '<button data-ac="color" data-v="'+esc(c)+'" aria-pressed="'+(f.color === c)+'"><span class="ac-dot" style="background:'+ac.colors[c]+'"></span>'+esc(c)+'</button>'; }).join('')+'</div></div>'+
         '<div class="ac-row2"><label class="ac-lab">시작일<input class="ac-in" type="date" id="ac-start" value="'+esc(f.start)+'"></label><label class="ac-lab">목표일 (선택)<input class="ac-in" type="date" id="ac-due" value="'+esc(f.due)+'"></label></div>'+
         '<label class="ac-lab">대상에서 뺄 객실 (선택)<input class="ac-in" id="ac-excl" placeholder="예: 2901, 3001 또는 29-31층" value="'+esc(f.excl)+'"><span style="font-weight:600;font-size:12px">비워 두면 417실 전체가 대상이에요</span></label>'+
-        '<label class="ac-lab">메모 (선택, 정비보조에게 보여요)<input class="ac-in" id="ac-memo2" maxlength="100" placeholder="예: 이불장 안쪽까지 확인, 얼룩은 이상으로" value="'+esc(f.memo)+'"></label></div>';
+        '<label class="ac-lab">메모 (선택, 정비보조에게 보여요)<input class="ac-in" id="ac-memo2" maxlength="100" placeholder="예: 이불장 안쪽까지 확인, 얼룩은 이상으로" value="'+esc(f.memo)+'"></label>'+
+        itemsForm(f)+'</div>';
       if (ac.err) h += '<p class="ac-err">'+esc(ac.err)+'</p>';
       h += '<button class="ac-big green" data-ac="save"'+(acBusy ? ' disabled' : '')+'>'+(acBusy ? '저장 중…' : f.id ? '저장' : '활동 만들기')+'</button>';
       return h;
+    }
+    function itemsForm(f){
+      var ic = ac.icolors || {}, names = Object.keys(ic), max = ac.imax || 5;
+      return '<div class="ac-lab">점검 항목 (선택 · '+max+'개까지)<span style="font-weight:600;font-size:12px">비워 두면 지금처럼 완료 / 이상 두 가지예요. 예: 상판 노후 · 다리 물듬 · 다리 흔들림</span>'+
+        '<div class="ac-its">'+(f.items || []).map(function(i, x){
+          return '<div class="r"><b class="ac-n" style="background:'+(ic[i.c] || '#999')+'">'+esc(i.k || '+')+'</b><input class="ac-in" id="ac-it-n-'+x+'" maxlength="12" placeholder="예: 상판 노후" value="'+esc(i.n)+'">'+
+            '<select id="ac-it-c-'+x+'" data-it="1">'+names.map(function(c){ return '<option'+(c === i.c ? ' selected' : '')+'>'+esc(c)+'</option>'; }).join('')+'</select>'+
+            '<button class="del" data-ac="itdel" data-v="'+x+'" aria-label="항목 지우기">×</button></div>';
+        }).join('')+((f.items || []).length < max ? '<button class="add" data-ac="itadd">＋ 항목 추가</button>' : '')+'</div>'+
+        (f.id && (f.items || []).some(function(i){ return i.k; }) ? '<span style="font-weight:600;font-size:12px">이미 체크된 객실은 번호로 기억해요. 이름·색을 바꾸면 그대로 따라 바뀌어요.</span>' : '')+'</div>';
     }
     function syncForm(){
       var f = ac && ac.f; if (!f) return;
       var g = function(id){ var e = document.getElementById(id); return e ? e.value : null; };
       var a = g('ac-name'), b = g('ac-start'), c = g('ac-due'), d = g('ac-excl'), e = g('ac-memo2');
       if (a !== null) f.name = a; if (b !== null) f.start = b; if (c !== null) f.due = c; if (d !== null) f.excl = d; if (e !== null) f.memo = e;
+      (f.items || []).forEach(function(i, x){ var n = g('ac-it-n-' + x), cc = g('ac-it-c-' + x); if (n !== null) i.n = n; if (cc !== null) i.c = cc; });
     }
     // ---------- 체크 저장 (누르는 즉시 화면 반영, 서버엔 하나씩)
-    function mark(r, s, memo){
-      ac.pend[r] = { s: s, memo: memo || '', w: who() || '관리자' };
+    function mark(r, s, memo, t){
+      t = s === '이상' ? (t || []).slice().sort() : [];
+      ac.pend[r] = { s: s, memo: memo || '', w: who() || '관리자', t: t };
       var q = ac.queue.filter(function(x){ return x.r === r && !x.sent; })[0];
-      if (q) { q.s = s; q.memo = memo; } else ac.queue.push({ r: r, s: s, memo: memo || '' });
+      if (q) { q.s = s; q.memo = memo; q.t = t; } else ac.queue.push({ r: r, s: s, memo: memo || '', t: t });
       try { buzz(25); } catch (e) {}
       draw(); pump();
     }
@@ -1180,14 +1256,15 @@ setInterval(function(){ if (document.visibilityState === 'visible') refresh(); }
           draw(); pump();
         }).withFailureHandler(function(e){
           if (!ac) return; ac.sending = false;
-          var m = String(e && e.message || e).replace(/^(Exception|Error):\s*/, '').replace('NOTMINE:', '');
+          var m = String(e && e.message || e).replace(/^(Exception|Error):\s*/, '').replace('NOTMINE:', '').replace('LOCK:', '');
           j.tries = (j.tries || 0) + 1;
-          if (j.tries < 3 && !/명단|대상이|끝난|확인해/.test(m)) { j.sent = false; setTimeout(pump, 1500 * j.tries); return; }
+          if (j.tries < 3 && !/명단|대상이|끝난|확인해|바꿀 수 없어요|골라 주세요/.test(m)) { j.sent = false; setTimeout(pump, 1500 * j.tries); return; }
           ac.queue.shift(); delete ac.pend[j.r]; ac.err = j.r + '호 저장 못 함: ' + m; draw(); pump();
-        }).actMark(id, j.r, j.s, j.memo, who(), adminTok || '');
+        }).actMark(id, j.r, j.s, j.memo, who(), adminTok || '', j.t || []);
     }
     // ---------- 입력
     document.addEventListener('input', function(e){ if (ac && ac.ask && e.target.id === 'ac-memo') ac.ask.memo = e.target.value; });
+    document.addEventListener('change', function(e){ if (ac && ac.stage === 'form' && e.target.getAttribute && e.target.getAttribute('data-it')) { syncForm(); draw(); } });
     document.addEventListener('click', function(e){
       var b = e.target.closest && e.target.closest('[data-ac]'); if (!b || b.disabled) return;
       var k = b.getAttribute('data-ac'), v = b.getAttribute('data-v'), id = b.getAttribute('data-id');
@@ -1201,19 +1278,28 @@ setInterval(function(){ if (document.visibilityState === 'visible') refresh(); }
       if (k === 'room') {
         if (!ac.cur || ac.cur.status !== '진행') return;
         var r = b.getAttribute('data-r'), m = markOf(r); ac.err = '';
-        if (ac.mode === 'issue' || (m && m.s === '이상')) { ac.ask = { room: r, memo: m && m.s === '이상' ? m.memo : '' }; draw(); return; }
+        if (locked(r, m)) { ac.ask = { room: r, kind: 'lock', day: kday(m.at) }; try { buzz(60); } catch (e4) {} draw(); return; }
+        if (ac.mode === 'issue' || (m && m.s === '이상')) { ac.ask = { room: r, memo: m && m.s === '이상' ? m.memo : '', t: tagsOf(m) }; draw(); return; }
+        if (m && !adminTok && m.w && m.w !== who()) { ac.ask = { room: r, kind: 'other', w: m.w }; draw(); return; }   // 오늘 다른 분이 체크한 칸은 한 번 더 묻기
         mark(r, m ? '취소' : '완료', ''); return;
       }
       if (k === 'memo' && ac.ask) { ac.ask.memo = v; draw(); return; }
-      if (k === 'issave' && ac.ask) { var mi = document.getElementById('ac-memo'); var r2 = ac.ask.room, mm = String(mi ? mi.value : ac.ask.memo || '').trim() || '이상'; ac.ask = null; mark(r2, '이상', mm); return; }
+      if (k === 'tg' && ac.ask) { var tl = ac.ask.t = ac.ask.t || [], ti = tl.indexOf(v); if (ti >= 0) tl.splice(ti, 1); else tl.push(v); ac.ask.err = ''; try { buzz(15); } catch (e5) {} draw(); return; }
+      if (k === 'issave' && ac.ask) {
+        var mi = document.getElementById('ac-memo'), r2 = ac.ask.room, raw = String(mi ? mi.value : ac.ask.memo || '').trim();
+        if (its().length) { var tt = (ac.ask.t || []).slice(); if (!tt.length && !raw) { ac.ask.err = '해당하는 항목을 하나 이상 골라 주세요. 이상이 없으면 아래 \'이상 없음으로\'를 눌러 주세요.'; draw(); return; } ac.ask = null; mark(r2, '이상', raw, tt); return; }
+        ac.ask = null; mark(r2, '이상', raw || '이상'); return;
+      }
       if (k === 'todone' && ac.ask) { var r3 = ac.ask.room; ac.ask = null; mark(r3, '완료', ''); return; }
       if (k === 'unmark' && ac.ask) { var r4 = ac.ask.room; ac.ask = null; mark(r4, '취소', ''); return; }
       if (k === 'askx') { ac.ask = null; draw(); return; }
       if (!adminTok || acBusy) return;
       // 관리자
-      if (k === 'new') { var td = (ac.list && ac.list.today) || ''; ac.f = { id: '', name: '', color: '민트', start: td, due: '', excl: '', memo: '' }; ac.stage = 'form'; ac.err = ''; ac.jump = true; draw(); return; }
-      if (k === 'edit') { var a = ac.list.acts.filter(function(x){ return x.id === id; })[0]; if (!a) return; ac.f = { id: a.id, name: a.name, color: a.color, start: a.start, due: a.due, excl: a.exclText || '', memo: a.memo }; ac.stage = 'form'; ac.err = ''; ac.jump = true; draw(); return; }
+      if (k === 'new') { var td = (ac.list && ac.list.today) || ''; ac.f = { id: '', name: '', color: '민트', start: td, due: '', excl: '', memo: '', items: [] }; ac.stage = 'form'; ac.err = ''; ac.jump = true; draw(); return; }
+      if (k === 'edit') { var a = ac.list.acts.filter(function(x){ return x.id === id; })[0]; if (!a) return; ac.f = { id: a.id, name: a.name, color: a.color, start: a.start, due: a.due, excl: a.exclText || '', memo: a.memo, items: (a.items || []).map(function(i){ return { k: i.k, n: i.n, c: i.c }; }) }; ac.stage = 'form'; ac.err = ''; ac.jump = true; draw(); return; }
       if (k === 'color' && ac.f) { ac.f.color = v; draw(); return; }
+      if (k === 'itadd' && ac.f) { var used = (ac.f.items || []).map(function(i){ return i.c; }), pick = Object.keys(ac.icolors || {}).filter(function(c){ return used.indexOf(c) < 0; })[0] || '빨강'; ac.f.items.push({ k: '', n: '', c: pick }); draw(); var ni = document.getElementById('ac-it-n-' + (ac.f.items.length - 1)); if (ni) ni.focus(); return; }
+      if (k === 'itdel' && ac.f) { ac.f.items.splice(Number(v), 1); draw(); return; }
       if (k === 'save' && ac.f) {
         if (!String(ac.f.name).trim()) { ac.err = '활동 이름을 적어 주세요.'; draw(); return; }
         ac.err = ''; draw();
@@ -1233,8 +1319,8 @@ setInterval(function(){ if (document.visibilityState === 'visible') refresh(); }
 </script>
 
 <script>SupShim.post();</script>
-<script src="distcalc.js?v=2026.11.07-2"></script>
-<script src="dist.js?v=2026.11.07-2"></script>
-<script type="module" src="boot.js?v=2026.11.07-2"></script>
+<script src="distcalc.js?v=2026.11.08-1"></script>
+<script src="dist.js?v=2026.11.08-1"></script>
+<script type="module" src="boot.js?v=2026.11.08-1"></script>
 </body>
 </html>

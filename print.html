@@ -37,7 +37,7 @@ body{background:#5B6573;color:#16202C;font:15px/1.45 "Noto Sans KR","Apple SD Go
 <div class="wrap" id="wrap"><div class="msg" id="msg">활동 기록을 받는 중…</div></div>
 <p class="tip" id="tip" hidden></p>
 <div id="print"></div>
-<script src="act.js?v=2026.11.07-2"></script>
+<script src="act.js?v=2026.11.08-1"></script>
 <script>
 var P = null, D = null;
 var W = 3508, H = 2480, S = W / 297;   // A4 가로 300dpi, 1mm = 11.81px
@@ -104,6 +104,10 @@ function paint(ctx, rec){
   T(stLab, 287 - sw / 2, 26.6, 3.0, 900, '#fff', 'center');
   box(10, 30.2, 277, 0.7, NAVY);
 
+  // 점검 항목 (2026-11-08): 칸 = 흰 바탕 + 번호 동그라미(항목 색), 범례·목록은 항목별
+  var IT = a.items || [], IH = {}; IT.forEach(function(i){ IH[i.k] = i; });
+  function tg(m){ return m && m.s === '이상' ? (m.t || []).filter(function(k){ return IH[k]; }) : []; }
+  function circ(x, y, r, col, num, sz){ if (!rec) { ctx.beginPath(); ctx.arc(p(x), p(y), p(r), 0, Math.PI * 2); ctx.fillStyle = col; ctx.fill(); } T(String(num), x, y + sz * 0.36, sz, 900, '#fff', 'center'); }
   // ----- 도면 (왼쪽)
   var X0 = 10, Y0 = 34, LW = 9, PW = 11, GW = 183 - LW - PW, G = 1.6, PITCH = (GW - 3 * G) / 18, HEAD = 5, RH = (166 - HEAD) / 28;
   function cx(c){ return X0 + LW + c * PITCH + ((c >= 4) + (c >= 6) + (c >= 12)) * G; }
@@ -123,6 +127,13 @@ function paint(ctx, rec){
     var m = marks[r], isx = !!ex[r], lab = r + (r === '2901' ? '  PLT' : '');
     if (isx) { box(x, y2, w, h, '#EEF1F4'); hatch(x, y2, w, h); box(x, y2, w, h, null, '#C3CAD3', 0.2, 0.6); T(lab, x + w / 2, y2 + h / 2 + 0.9, 2.4, 700, '#9AA4B0', 'center'); return; }
     if (!m) { box(x, y2, w, h, '#fff', '#AEB8C4', 0.22, 0.6); T(lab, x + w / 2, y2 + h / 2 + 0.9, 2.4, 700, '#3A4656', 'center'); return; }
+    var tt = tg(m);
+    if (tt.length) {
+      box(x, y2, w, h, '#fff', IH[tt[0]].hex, 0.5, 0.6); T(lab, x + w / 2, y2 + 1.95, 2.0, 900, INK, 'center');
+      var cr = 0.95, gap = Math.min(2.1, (w - 1) / tt.length), sx0 = x + w / 2 - gap * (tt.length - 1) / 2;
+      tt.forEach(function(k, j){ circ(sx0 + j * gap, y2 + h - 1.35, cr, IH[k].hex, k, 1.5); });
+      return;
+    }
     if (m.s === '이상') {
       box(x, y2, w, h, RED_SOFT, RED, 0.5, 0.6); T(lab, x + w / 2 - 0.4, y2 + h / 2 + 0.9, 2.4, 900, '#8E1B1B', 'center');
       T('!', x + w - 0.9, y2 + 2.1, 2.2, 900, RED, 'center'); return;
@@ -138,7 +149,7 @@ function paint(ctx, rec){
   T(st.pct + '%', RX + 4, 54.2, 13.5, 900, NAVY);
   T('처리 ' + st.proc + ' / ' + st.target + '실', RX + RWd - 4, 40.2, 3.4, 900, INK, 'right');
   T('오늘 +' + st.today + '실', RX + RWd - 4, 46, 3.0, 700, st.today ? '#1B5E20' : MUTED, 'right');
-  T('(완료 + 이상) ÷ 대상', RX + RWd - 4, 51.4, 2.5, 400, MUTED, 'right');
+  T(IT.length ? '(이상 없음 + 항목 있음) ÷ 대상' : '(완료 + 이상) ÷ 대상', RX + RWd - 4, 51.4, 2.5, 400, MUTED, 'right');
   var gx = RX + 4, gw = RWd - 8;
   box(gx, 56.6, gw, 4, '#DCE2E9', null, 0, 2);
   if (!rec && st.target) {
@@ -147,13 +158,13 @@ function paint(ctx, rec){
     ctx.fillStyle = RED; ctx.fillRect(p(gx + gw * st.done / st.target), p(56.6), p(gw * st.issue / st.target), p(4));
     ctx.restore();
   }
-  var tiles = [['대상', st.target, INK], ['완료', st.done, a.hex], ['이상', st.issue, st.issue ? RED : INK], ['미완료', st.left, st.left ? INK : '#1B5E20']];
+  var tiles = [['대상', st.target, INK], [IT.length ? '이상 없음' : '완료', st.done, a.hex], [IT.length ? '항목 있음' : '이상', st.issue, st.issue ? RED : INK], ['미완료', st.left, st.left ? INK : '#1B5E20']];
   var tw = (gw - 3 * 2) / 4;
   tiles.forEach(function(t, i){ var x = gx + i * (tw + 2); box(x, 63, tw, 11, '#fff', '#DCE2E9', 0.2, 1.2); T(t[0], x + tw / 2, 66.7, 2.5, 700, MUTED, 'center'); T(t[1], x + tw / 2, 72.3, 4.4, 900, t[2], 'center'); });
 
   // 범례
   var lx = RX, ly = 80.5;
-  [['완료', 'd'], ['이상 있음', 'i'], ['미완료', 'n'], ['대상 제외', 'x']].forEach(function(L){
+  (IT.length ? [['이상 없음', 'd'], ['미완료', 'n'], ['대상 제외', 'x']] : [['완료', 'd'], ['이상 있음', 'i'], ['미완료', 'n'], ['대상 제외', 'x']]).forEach(function(L){
     var sx = lx, sy = ly - 2.6;
     if (L[1] === 'd') box(sx, sy, 5, 3.4, a.hex, null, 0, 0.6);
     else if (L[1] === 'i') { box(sx, sy, 5, 3.4, RED_SOFT, RED, 0.45, 0.6); T('!', sx + 4, sy + 2.2, 2, 900, RED, 'center'); }
@@ -162,6 +173,12 @@ function paint(ctx, rec){
     lx += 6.2 + T(L[0], sx + 6.2, ly, 2.7, 700, INK) + 4;
   });
 
+  if (IT.length) {   // 항목 범례 (번호 · 이름 · 실 수) — 넘치면 이름 빼고 번호 · 실 수만
+    var cnt = st.items || {}, full = IT.map(function(i){ return i.n + ' ' + (cnt[i.k] || 0); }), sz = 2.6;
+    var wFull = full.reduce(function(s2, t){ return s2 + 3.4 + TW(t, sz, 800) + 3; }, 0), labs = wFull <= RWd ? full : IT.map(function(i){ return String(cnt[i.k] || 0) + '실'; });
+    var ix = RX;
+    IT.forEach(function(i, j){ circ(ix + 1.5, 84.3, 1.5, i.hex, i.k, 2.0); ix += 3.4 + T(labs[j], ix + 3.6, 85.2, sz, 800, INK) + 3; });
+  }
   // 층별 진도표 (두 줄)
   T('층별 진도', RX, 89.8, 3.4, 900, NAVY);
   T('처리 / 대상', RX + RWd, 89.8, 2.5, 400, MUTED, 'right');
@@ -197,7 +214,17 @@ function paint(ctx, rec){
     return lines.length;
   }
   var room4 = Math.floor((bottom - ly2) / LH);
-  if (iss.length) {
+  if (iss.length && IT.length) {   // 항목별 객실 (교체·수리 업체에 넘길 목록)
+    var per = Math.max(1, Math.min(3, Math.floor((room4 - (left.length ? 4 : 1)) / IT.length) - 1));
+    IT.forEach(function(i){
+      var rs = iss.filter(function(r){ return tg(marks[r]).indexOf(i.k) >= 0; });
+      if (ly2 > bottom - LH) return;
+      circ(RX + 1.5, ly2 - 0.9, 1.5, i.hex, i.k, 2.0); T(i.n + '  ' + rs.length + '실', RX + 4, ly2, 3.0, 900, INK);
+      var u = rs.length ? flow(rs, RX, ly2 + LH + 0.2, RWd, per, 2.5, 700, INK, '  ') : 0;
+      ly2 += (u + 1) * LH + 1.6;
+    });
+    ly2 += 1.2;
+  } else if (iss.length) {
     T('이상 있는 객실 ' + iss.length, RX, ly2, 3.2, 900, RED);
     var issLines = Math.max(2, Math.min(Math.ceil(iss.length / 3), left.length ? Math.floor((room4 - 4) / 2) : room4 - 2));
     var used2 = flow(iss.map(function(r){ var m = marks[r]; return r + ' ' + (m.memo || '이상'); }), RX, ly2 + LH + 0.4, RWd, issLines, 2.55, 700, '#8E1B1B', '   ');
@@ -274,7 +301,7 @@ window.__actStart = function(p){
 </script>
 <script type="module">
 // 활동 문서와 객실 체크를 한 번 받아 앱과 같은 계산(act.js)으로 숫자를 만듦
-import * as store from './store.js?v=2026.11.07-2';
+import * as store from './store.js?v=2026.11.08-1';
 const id = new URLSearchParams(location.search).get('id') || '';
 const fail = m => window.__actStart({ err: m });
 let act = null, marks = null, started = false;

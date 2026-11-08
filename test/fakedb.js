@@ -26,7 +26,11 @@ function make() {
     return 'tab';
   }
   function validMark(uid, id, room, d) {
-    if (!Object.keys(d).every(k => ['s', 'm', 'w', 'by', 'at', 'clientAt', 'uid'].includes(k))) return 'mark-keys';
+    if (!Object.keys(d).every(k => ['s', 'm', 'w', 'by', 'at', 'clientAt', 'uid', 't'].includes(k))) return 'mark-keys';
+    // v9 (2026-11-08): 점검 항목 t = 번호 목록(5개까지, 이상일 때만) · 지난 날짜(서울)에 체크된 객실은 근무자가 못 바꿈
+    if ('t' in d && !(Array.isArray(d.t) && d.t.length <= 5 && d.t.every(x => typeof x === 'string' && /^[1-9]$/.test(x)) && (d.t.length === 0 || d.s === '이상'))) return 'mark-t';
+    const old = docs.get('acts/' + id + '/marks/' + room), kday = ms => new Date(ms + 9 * 36e5).toISOString().slice(0, 10);
+    if (old && old.s !== '취소' && old.at && kday(old.at.__ts) < kday(Date.now())) return 'mark-locked';
     if (!/^[0-9]{3,4}$/.test(room)) return 'mark-room';
     if (!['완료', '이상', '취소'].includes(d.s) || !str(d.m, 30) || !(d.s === '이상' || d.m === '')) return 'mark-s';
     if (!isName(d.w) || d.w === '관리자' || d.by !== '본인') return 'mark-who';
