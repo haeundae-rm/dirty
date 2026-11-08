@@ -63,7 +63,7 @@
       return env.acts().filter(function (d) { return String(d.id).indexOf('CHECK-') !== 0; }).map(function (d) {   // 규칙 점검용 시험 활동은 안 보임
         var st = ['진행', '끝남', '보관'].indexOf(d.status) >= 0 ? d.status : '진행';
         return { id: d.id, made: iso(d.made), status: st, name: String(d.name || ''), color: String(d.color || ''), start: day(d.start), due: day(d.due),
-                 excl: excl(d.exclText), exclText: String(d.exclText || ''), memo: String(d.memo || ''), ended: st === '끝남' ? iso(d.ended) : '', items: items(d.items), doneName: String(d.doneName || '').replace(/\s+/g, ' ').trim().slice(0, 10) };
+                 excl: excl(d.exclText), exclText: String(d.exclText || ''), memo: String(d.memo || ''), ended: st === '끝남' ? iso(d.ended) : '', items: items(d.items), doneName: String(d.doneName || '').replace(/\s+/g, ' ').trim().slice(0, 10), lockAt: iso(d.lockAt) };
       }).filter(function (a) { return a.name; }).sort(function (a, b) { return (a.made < b.made ? -1 : a.made > b.made ? 1 : 0) || (a.id < b.id ? -1 : 1); });
     }
     function marksOf(id, its) {
@@ -96,7 +96,7 @@
                floors: floors, workers: workers, workersToday: workersToday, days: days, items: byItem };
     }
     function pub(a, marks, admin) {
-      var out = { id: a.id, name: a.name, color: a.color, hex: COLORS[a.color] || '#1FB59A', start: a.start, due: a.due, excl: a.excl, exclText: a.exclText, memo: a.memo, status: a.status, ended: a.ended || '', items: a.items || [], doneName: a.doneName || '', stats: stats(a, marks || {}) };
+      var out = { id: a.id, name: a.name, color: a.color, hex: COLORS[a.color] || '#1FB59A', start: a.start, due: a.due, excl: a.excl, exclText: a.exclText, memo: a.memo, status: a.status, ended: a.ended || '', items: a.items || [], doneName: a.doneName || '', lockAt: a.lockAt || '', stats: stats(a, marks || {}) };
       if (admin) out.printUrl = env.printUrl(a.id);
       return out;
     }
@@ -104,7 +104,7 @@
     function needAdmin(token) { if (!env.isAdmin(token)) throw new Error('관리자 비밀번호가 필요해요. 관리자 모드로 다시 들어와 주세요.'); }
     function docOf(a, patch) {   // 활동 문서 전체 (수정할 때도 통째로 다시 씀)
       var d = { name: a.name, color: a.color, start: a.start, due: a.due || '', exclText: a.exclText || '', memo: a.memo || '', status: a.status, made: a.made ? new Date(a.made) : new Date(), ended: a.ended ? new Date(a.ended) : null,
-                items: (a.items || []).map(function (i) { return { k: i.k, n: i.n, c: i.c }; }), doneName: a.doneName || '' };
+                items: (a.items || []).map(function (i) { return { k: i.k, n: i.n, c: i.c }; }), doneName: a.doneName || '', lockAt: a.lockAt ? new Date(a.lockAt) : null };
       Object.keys(patch || {}).forEach(function (k) { d[k] = patch[k]; });
       return d;
     }
@@ -134,6 +134,8 @@
       var cur = marksOf(a.id, a.items)[r];
       // 지난 날짜에 체크된 객실은 근무자가 못 바꿈 (2026-11-08 — 오늘 근무자의 잘못 누름으로 어제 기록이 지워지는 것 막기). 관리자는 됨. 규칙 v9 도 같은 검사
       if (!admin && cur && cur.at && fmt(new Date(cur.at), 'yyyy-MM-dd') < today()) throw new Error('LOCK:' + r + '호는 ' + Number(fmt(new Date(cur.at), 'MM')) + '/' + Number(fmt(new Date(cur.at), 'dd')) + '에 체크된 객실이라 바꿀 수 없어요. 고칠 게 있으면 관리자에게 말씀해 주세요.');
+      // 관리자가 '지금까지 체크 잠그기'를 누른 뒤에는 그 전에 체크된 객실도 근무자가 못 바꿈 (11/8, 규칙 v10 도 같은 검사). 빈 칸은 계속 체크 가능
+      if (!admin && cur && cur.at && a.lockAt && new Date(cur.at).getTime() <= new Date(a.lockAt).getTime()) throw new Error('LOCK:' + r + '호는 관리자가 잠근 기록이라 바꿀 수 없어요. 고칠 게 있으면 관리자에게 말씀해 주세요.');
       var tt = state === '이상' ? tags(tg, a.items) : [];
       var mm = state === '이상' ? String(memo || '').replace(/\s+/g, ' ').trim().slice(0, 30) : '';
       if (state === '이상' && a.items.length && !tt.length && !mm) throw new Error('해당하는 항목을 하나 이상 골라 주세요.');
@@ -182,11 +184,12 @@
     }
     function actStatus(token, id, kind) {
       needAdmin(token);
-      if (['끝내기', '다시 열기', '보관'].indexOf(kind) < 0) throw new Error('처리 방법을 확인해 주세요.');
+      if (['끝내기', '다시 열기', '보관', '잠그기', '잠금 풀기'].indexOf(kind) < 0) throw new Error('처리 방법을 확인해 주세요.');
       var a = find(id);
       if (!a) throw new Error('활동을 찾지 못했어요.');
       if (kind === '끝내기' && a.status !== '진행') throw new Error('진행 중인 활동만 끝낼 수 있어요.');
       if (kind === '다시 열기' && a.status === '진행') throw new Error('이미 진행 중이에요.');
+      if (kind === '잠그기' || kind === '잠금 풀기') { env.saveAct(a.id, docOf(a, { lockAt: kind === '잠그기' ? '__now' : null })); return actGet(a.id, token); }   // '__now' = 서버 시각
       env.saveAct(a.id, docOf(a, kind === '끝내기' ? { status: '끝남', ended: new Date() } : kind === '다시 열기' ? { status: '진행', ended: null } : { status: '보관' }));
       return actList(token);
     }

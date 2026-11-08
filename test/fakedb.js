@@ -31,6 +31,8 @@ function make() {
     if ('t' in d && !(Array.isArray(d.t) && d.t.length <= 5 && d.t.every(x => typeof x === 'string' && /^[1-9]$/.test(x)) && (d.t.length === 0 || d.s === '이상'))) return 'mark-t';
     const old = docs.get('acts/' + id + '/marks/' + room), kday = ms => new Date(ms + 9 * 36e5).toISOString().slice(0, 10);
     if (old && old.s !== '취소' && old.at && kday(old.at.__ts) < kday(Date.now())) return 'mark-locked';
+    const act0 = docs.get('acts/' + id);   // v10: 관리자 잠금 lockAt 이전에 체크된 객실
+    if (old && old.s !== '취소' && old.at && act0 && act0.lockAt && act0.lockAt.__ts && old.at.__ts <= act0.lockAt.__ts) return 'mark-admin-locked';
     if (!/^[0-9]{3,4}$/.test(room)) return 'mark-room';
     if (!['완료', '이상', '취소'].includes(d.s) || !str(d.m, 30) || !(d.s === '이상' || d.m === '')) return 'mark-s';
     if (!isName(d.w) || d.w === '관리자' || d.by !== '본인') return 'mark-who';

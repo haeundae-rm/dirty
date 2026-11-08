@@ -8,7 +8,7 @@
 // 관리자 확인은 Firebase 로그인(소장·부소장 계정) + 보안 규칙. 화면의 adminTok 은 '관리자 모드' 표시용 값일 뿐
 (function () {
   'use strict';
-  var APP_VER = '2026.11.08-2';
+  var APP_VER = '2026.11.08-3';
   var TZ = 'Asia/Seoul';
   var API_URL = 'https://script.google.com/macros/s/AKfycbyPvhvScAcDfGqyxdK9pvr8vtewfjAkHsbRBiN04GCNbzE4HL_zZHODWPPb4xUHQb0LCw/exec';
   var ADMINS = { '소장': 'unieshaeundae+admin@gmail.com', '부소장': 'unieshaeundae+sub@gmail.com' };
@@ -143,6 +143,7 @@
       if (!S.user) throw new Error('아직 연결 중이에요. 잠시 뒤 다시 눌러 주세요.');
       var doc = {}, loc = {};
       Object.keys(d).forEach(function (k) { doc[k] = d[k]; loc[k] = d[k] instanceof Date ? d[k].getTime() : d[k]; });
+      if (d.lockAt === '__now') { doc.lockAt = S.store.SERVER_TIME; loc.lockAt = Date.now(); }   // 관리자 잠금 시각 = 서버 시각 (11/8)
       doc.at = S.store.SERVER_TIME; doc.uid = S.user.uid;
       A.docs[id] = loc; if (d.status !== '보관') marksSub(id);
       S.store.set('acts/' + id, doc).then(null, function (e) { actRejected('활동 ' + (d.name || id), e); });

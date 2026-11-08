@@ -197,6 +197,30 @@ const openSec = async (p, sec, sel) => until(async () => { await p.evaluate(s =>
   await pA.click('[data-ac="todone"]');
   ok(await until(() => { const m = mark(db, NID, '2105'); return m && m.s === '완료' && !m.t; }), "항목 → '이상 없음으로' 바꾸기");
 
+  console.log('⑤-1 관리자 도면 잠금');
+  await pM.click('[data-ac="act"][data-id="' + NID + '"]');
+  await until(async () => (await pM.locator('[data-ac="lock"][data-k="잠그기"]').count()) === 1);
+  await pM.click('[data-ac="lock"][data-k="잠그기"]');
+  ok(/한 번 더/.test(await txt(pM, '[data-ac="lock"][data-k="잠그기"]')), '잠그기는 두 번 눌러야');
+  await pM.click('[data-ac="lock"][data-k="잠그기"]');
+  ok(await until(() => { const d = db.docs.get('acts/' + NID); return d && d.lockAt && '__ts' in d.lockAt && d.items.length === 3; }), '문서 lockAt = 서버 시각 (항목 그대로)');
+  ok(await until(async () => /까지 체크된 칸은 정비보조가 못 바꿔요/.test(await txt(pM, '.ac'))), '관리자 화면: 잠금 시각 안내');
+  ok(await until(async () => (await pA.locator('.ac-t.l[data-r="2101"]').count()) === 1, 6000), '정비보조 화면: 2101 에 자물쇠');
+  await pA.click('.ac-t[data-r="2101"]');
+  ok(await until(async () => /관리자가 잠근 기록/.test(await txt(pA, '.ac-pop'))), '누르면 \'관리자가 잠근 기록\' 안내');
+  await pA.click('[data-ac="askx"]');
+  await pA.click('[data-ac="mode"][data-v="done"]');
+  await pA.click('.ac-t[data-r="2107"]');
+  ok(await until(() => { const m = mark(db, NID, '2107'); return m && m.s === '완료'; }), '잠근 뒤에도 빈 칸(2107)은 체크됨');
+  await pA.click('.ac-t[data-r="2107"]');
+  ok(await until(() => mark(db, NID, '2107').s === '취소'), '잠근 뒤 새로 체크한 칸은 취소 가능');
+  const fz2 = await pA.evaluate(async (id) => { const S = SupShim._S, st = S.store; try { await st.set('acts/' + id + '/marks/2103', { s: '취소', m: '', w: '김정비', by: '본인', at: st.SERVER_TIME, clientAt: new Date(), uid: S.user.uid }); return 'ok'; } catch (e) { return 'rejected'; } }, NID);
+  ok(fz2 === 'rejected', '규칙: 잠근 칸을 정비보조가 바꾸면 거절');
+  await pM.click('[data-ac="lock"][data-k="잠금 풀기"]');
+  ok(await until(() => { const d = db.docs.get('acts/' + NID); return d && d.lockAt === null; }), '잠금 풀기 → lockAt 비움');
+  ok(await until(async () => (await pA.locator('.ac-t.l[data-r="2101"]').count()) === 0, 6000), '풀면 자물쇠 사라짐');
+  await pM.click('.ac-top [data-ac="list"]');
+  await until(async () => (await pM.locator('[data-ac="act"][data-id="' + NID + '"]').count()) === 1);
   console.log('⑤ 관리자 화면·수정·출력');
   await pM.click('[data-ac="act"][data-id="' + NID + '"]');
   ok(await until(async () => /상판 노후\s*2/.test(await txt(pM, '.ac-legend'))), '관리자 도면 범례 같은 숫자');
@@ -219,7 +243,7 @@ const openSec = async (p, sec, sel) => until(async () => { await p.evaluate(s =>
   console.log('⑥ 오류');
   const errs = [pA, pB, pM, pr].flatMap(p => p.errors.map(e => p.label + ': ' + e));
   ok(!errs.length, '화면 오류 0' + (errs.length ? ' → ' + errs.slice(0, 5).join(' | ') : ''));
-  ok(db.log.rejects.filter(r => /^acts\//.test(r.path)).length === 4, '활동판 거절은 일부러 넣은 4건뿐 ' + JSON.stringify(db.log.rejects.map(r => r.path + ':' + r.why)));
+  ok(db.log.rejects.filter(r => /^acts\//.test(r.path)).length === 5, '활동판 거절은 일부러 넣은 5건뿐 ' + JSON.stringify(db.log.rejects.map(r => r.path + ':' + r.why)));
 
   await browser.close();
   console.log('\n결과: ' + pass + ' 통과 / ' + fail + ' 실패');

@@ -235,7 +235,7 @@ main{padding:16px 16px 48px;max-width:760px;margin:0 auto;display:flex;flex-dire
 @media (prefers-reduced-motion:reduce){.confetti{display:none}.thanks div{animation:none}}
 @media (rm-light-only){.stat .big,.sum .left .n,.floor{color:color-mix(in srgb,var(--wc) 55%,#fff)}}
 </style>
-<link rel="stylesheet" href="aplus.css?v=2026.11.08-2">
+<link rel="stylesheet" href="aplus.css?v=2026.11.08-3">
 </head>
 <body>
 <header class="top">
@@ -246,9 +246,9 @@ main{padding:16px 16px 48px;max-width:760px;margin:0 auto;display:flex;flex-dire
 </header>
 <main id="main"><div class="notice"><strong>오늘 배정을 불러오고 있어요.</strong></div></main>
 <div id="sheet"></div>
-<script src="server.js?v=2026.11.08-2"></script>
-<script src="act.js?v=2026.11.08-2"></script>
-<script src="shim.js?v=2026.11.08-2"></script>
+<script src="server.js?v=2026.11.08-3"></script>
+<script src="act.js?v=2026.11.08-3"></script>
+<script src="shim.js?v=2026.11.08-3"></script>
 <script>
 var plan = null, checks = {}, tab = null, dlg = null, busyChg = false, pver = 0;  // pver: 담당 변경 횟수. 변경 전에 출발한 응답의 담당 정보는 버림
 var openCards = {}, openSecs = {};
@@ -1076,10 +1076,21 @@ setInterval(function(){ if (document.visibilityState === 'visible') refresh(); }
       return cs.length === 1 ? cs[0] : 'linear-gradient(90deg,'+cs.map(function(c, j){ return c+' '+(j / cs.length * 100)+'% '+((j + 1) / cs.length * 100)+'%'; }).join(',')+')';
     }
     function kday(at){ try { return new Date(at).toLocaleDateString('en-CA', { timeZone: 'Asia/Seoul' }); } catch (e) { return ''; } }
-    function locked(r, m){   // 지난 날짜에 체크된 칸 — 근무자는 못 바꿈 (관리자는 됨)
+    function locked(r, m){   // 지난 날짜에 체크된 칸 · 관리자가 잠근 칸 — 근무자는 못 바꿈 (관리자는 됨)
       if (adminTok || !m || !ac.cur || ac.pend[r] || !m.at) return false;
       var d = kday(m.at), t = ac.cur.today || (ac.list && ac.list.today) || '';
-      return !!(d && t && d < t);
+      if (d && t && d < t) return 'day';
+      if (ac.cur.lockAt && new Date(m.at).getTime() <= new Date(ac.cur.lockAt).getTime()) return 'admin';
+      return false;
+    }
+    function hm(at){ try { return new Date(at).toLocaleTimeString('ko-KR', { timeZone: 'Asia/Seoul', hour: '2-digit', minute: '2-digit', hour12: false }); } catch (e) { return ''; } }
+    function lockCard(a){   // 관리자: 지금까지 체크된 칸 잠그기 / 풀기
+      if (!adminTok || a.status !== '진행') return a.lockAt && !adminTok ? '' : '';
+      var on = !!a.lockAt, ask = ac.askId === a.id && ac.askKind === '잠그기';
+      return '<div class="ac-card"><div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap"><div style="flex:1;min-width:180px"><b style="font-size:16px">🔒 도면 잠금</b><p class="ac-note" style="margin:2px 0 0">'+
+        (on ? kday(a.lockAt).slice(5).replace('-', '/')+' '+hm(a.lockAt)+'까지 체크된 칸은 정비보조가 못 바꿔요. 빈 칸은 계속 체크돼요.' : '누르면 지금까지 체크된 칸을 정비보조가 못 바꿔요. 날짜가 지나면 자동으로 잠겨요.')+'</p></div>'+
+        '<button class="ac-big" style="width:auto;min-height:48px;padding:0 16px;'+(ask ? 'background:var(--warn)' : '')+'" data-ac="lock" data-k="잠그기" data-id="'+esc(a.id)+'">'+(ask ? '한 번 더 누르면 잠가요' : on ? '지금까지로 다시 잠그기' : '지금까지 잠그기')+'</button>'+
+        (on ? '<button class="ac-big" style="width:auto;min-height:48px;padding:0 16px;background:var(--surface);color:var(--ink);border:1.5px solid var(--line)" data-ac="lock" data-k="잠금 풀기" data-id="'+esc(a.id)+'">잠금 풀기</button>' : '')+'</div></div>';
     }
     function legend(items, cnt, hex, done, dn){
       if (!items || !items.length) return '';
@@ -1157,6 +1168,7 @@ setInterval(function(){ if (document.visibilityState === 'visible') refresh(); }
         '<div class="ac-sum">처리 <b>'+s.proc+'</b> / '+s.target+'실 · <b>'+s.pct+'%</b>'+(s.issue ? ' · <span style="color:#C62828">'+(its().length ? '항목 있음 ' : '이상 ')+s.issue+'</span>' : '')+'</div>'+bar(s, hex)+legend(its(), s.items, hex, s.done, doneOf(a))+
         (a.due ? '<p class="ac-note">목표 '+md(a.due)+(a.memo ? ' · '+esc(a.memo) : '')+'</p>' : a.memo ? '<p class="ac-note">'+esc(a.memo)+'</p>' : '')+'</div>';
       h += printLink(a, true);
+      h += lockCard(a);
       if (a.status !== '진행') h += '<div class="ac-card"><p class="ac-err" style="color:var(--muted)">끝난 활동이라 보기만 할 수 있어요.</p></div>';
       else if (its().length) h += '<div class="ac-seg"><button data-ac="mode" data-v="done" aria-pressed="'+(ac.mode === 'done')+'">✔ '+esc(doneOf(a))+'</button><button class="iss" data-ac="mode" data-v="issue" aria-pressed="'+(ac.mode === 'issue')+'">🎨 항목 체크</button></div>'+
         '<p class="ac-note" style="margin:-4px 2px 0">'+(ac.mode === 'issue' ? '객실을 누르면 해당하는 항목을 모두 골라요. 끝나면 \''+esc(doneOf(a))+'\'(으)로 돌아오세요.' : '객실을 누르면 '+esc(doneOf(a))+', 한 번 더 누르면 취소돼요.')+'</p>';
@@ -1194,7 +1206,7 @@ setInterval(function(){ if (document.visibilityState === 'visible') refresh(); }
     }
     function askHtml(){
       var r = ac.ask.room, m = markOf(r), memo = ac.ask.memo, X = '<button class="ac-big" style="background:var(--surface);color:var(--ink);border:1.5px solid var(--line)" data-ac="askx">닫기</button>';
-      if (ac.ask.kind === 'lock') return '<div class="ac-pop"><div class="pn"><h3>🔒 '+esc(r)+'호 · '+esc(md(ac.ask.day))+' 체크됨</h3><p class="ac-note" style="margin:0;font-size:16px">지난 날짜 기록이라 바꿀 수 없어요. 고칠 게 있으면 관리자에게 말씀해 주세요.</p>'+X+'</div></div>';
+      if (ac.ask.kind === 'lock') return '<div class="ac-pop"><div class="pn"><h3>🔒 '+esc(r)+'호 · '+esc(md(ac.ask.day))+' 체크됨</h3><p class="ac-note" style="margin:0;font-size:16px">'+(ac.ask.why === 'admin' ? '관리자가 잠근 기록이라' : '지난 날짜 기록이라')+' 바꿀 수 없어요. 고칠 게 있으면 관리자에게 말씀해 주세요.</p>'+X+'</div></div>';
       if (ac.ask.kind === 'other') return '<div class="ac-pop"><div class="pn"><h3>'+esc(r)+'호 · '+esc(ac.ask.w)+' 님이 체크함</h3><p class="ac-note" style="margin:0;font-size:16px">오늘 다른 분이 체크한 객실이에요. 정말 지울까요?</p>'+
         '<button class="ac-big" style="background:var(--warn)" data-ac="unmark">체크 지우기</button>'+X+'</div></div>';
       if (its().length) {
@@ -1285,7 +1297,7 @@ setInterval(function(){ if (document.visibilityState === 'visible') refresh(); }
       if (k === 'room') {
         if (!ac.cur || ac.cur.status !== '진행') return;
         var r = b.getAttribute('data-r'), m = markOf(r); ac.err = '';
-        if (locked(r, m)) { ac.ask = { room: r, kind: 'lock', day: kday(m.at) }; try { buzz(60); } catch (e4) {} draw(); return; }
+        var lk = locked(r, m); if (lk) { ac.ask = { room: r, kind: 'lock', day: kday(m.at), why: lk }; try { buzz(60); } catch (e4) {} draw(); return; }
         if (ac.mode === 'issue' || (m && m.s === '이상')) { ac.ask = { room: r, memo: m && m.s === '이상' ? m.memo : '', t: tagsOf(m) }; draw(); return; }
         if (m && !adminTok && m.w && m.w !== who()) { ac.ask = { room: r, kind: 'other', w: m.w }; draw(); return; }   // 오늘 다른 분이 체크한 칸은 한 번 더 묻기
         mark(r, m ? '취소' : '완료', ''); return;
@@ -1313,6 +1325,13 @@ setInterval(function(){ if (document.visibilityState === 'visible') refresh(); }
         acRun('actSave', [adminTok, ac.f], function(d){ ac.list = d; ac.stage = 'list'; ac.f = null; ac.jump = true; draw(); try { note('활동을 저장했어요'); } catch (e3) {} }, function(m){ ac.err = m; draw(); });
         return;
       }
+      if (k === 'lock') {
+        var lkind = b.getAttribute('data-k');
+        if (lkind === '잠그기' && (ac.askId !== id || ac.askKind !== '잠그기')) { ac.askId = id; ac.askKind = '잠그기'; draw(); return; }   // 두 번 눌러야
+        ac.askId = ''; ac.askKind = '';
+        acRun('actStatus', [adminTok, id, lkind], function(d){ ac.cur = d; draw(); try { note(lkind === '잠그기' ? '지금까지 체크된 칸을 잠갔어요' : '잠금을 풀었어요'); } catch (e6) {} }, function(m2){ ac.err = m2; draw(); });
+        return;
+      }
       if (k === 'st') {
         var kind = b.getAttribute('data-k');
         if (kind !== '다시 열기' && (ac.askId !== id || ac.askKind !== kind)) { ac.askId = id; ac.askKind = kind; draw(); return; }   // 끝내기·보관은 두 번 눌러야
@@ -1326,8 +1345,8 @@ setInterval(function(){ if (document.visibilityState === 'visible') refresh(); }
 </script>
 
 <script>SupShim.post();</script>
-<script src="distcalc.js?v=2026.11.08-2"></script>
-<script src="dist.js?v=2026.11.08-2"></script>
-<script type="module" src="boot.js?v=2026.11.08-2"></script>
+<script src="distcalc.js?v=2026.11.08-3"></script>
+<script src="dist.js?v=2026.11.08-3"></script>
+<script type="module" src="boot.js?v=2026.11.08-3"></script>
 </body>
 </html>
