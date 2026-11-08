@@ -267,6 +267,40 @@ const openSec = async (p, sec, sel) => until(async () => { await p.evaluate(s =>
   if (durl) fs.writeFileSync(process.env.SHOT || '/tmp/act_print.png', Buffer.from(durl.split(',')[1], 'base64'));
   await pA.screenshot({ path: (process.env.SHOT || '/tmp/act_print.png').replace('print', 'phone'), fullPage: false });
 
+  console.log('⑧ 대상 구간 확대 (IBK 와인 세팅처럼 12~17호 × 5~26층)');
+  await pM.click('.ac-top [data-ac="list"]').catch(() => {});
+  await until(async () => (await pM.locator('[data-ac="new"]').count()) === 1);
+  await pM.click('[data-ac="new"]');
+  await pM.fill('#ac-name', 'IBK 와인 세팅');
+  await pM.fill('#ac-excl', '1-11호, 4층, 27-31층');
+  await pM.fill('#ac-done', '세팅 완료');
+  await pM.click('[data-ac="save"]');
+  const WID = 'A' + DAY.slice(2).replace(/-/g, '') + '-2';
+  ok(await until(() => { const d = db.docs.get('acts/' + WID); return d && d.name === 'IBK 와인 세팅'; }), '활동 ' + WID + ' 만듦');
+  await until(async () => (await pM.locator('[data-ac="act"][data-id="' + WID + '"]').count()) === 1);
+  ok(/처리 0 \/ 132실/.test((await txt(pM, '.ac')).replace(/\s+/g, ' ')), '대상 132실 (22층 × 6호)');
+  await pM.click('[data-ac="act"][data-id="' + WID + '"]');
+  ok(await until(async () => /대상 구간만 · 5~26층 · 12~17호/.test(await txt(pM, '.ac'))), "전체 도면 제목 '대상 구간만 · 5~26층 · 12~17호'");
+  ok(await pM.locator('.ac-map button.ac-row').count() === 22, '도면 줄 22개 (5~26층만)');
+  ok(await pM.locator('.ac-map button.ac-row').first().locator('.c').count() === 6, '줄마다 칸 6개 (12~17호)');
+  ok(await pM.locator('.ac-tiles .ac-t').count() === 6, '층 카드도 12~17호 6칸');
+  ok(/26층/.test(await txt(pM, '.ac-fh')), '처음 층 = 대상이 있는 가장 위층 26층');
+  await pM.click('[data-ac="full"]');
+  ok(await pM.locator('.ac-map button.ac-row').count() === 28 && await pM.locator('.ac-map button.ac-row').first().locator('.c').count() === 17, "'전체 도면 보기' → 28줄 × 17칸");
+  await pM.click('[data-ac="full"]');
+  ok(await pM.locator('.ac-map button.ac-row').count() === 22, "'대상 구간만 보기'로 다시");
+  const pw = await pM.ctx.newPage(); watch(pw); pw.label = '출력W';
+  await pw.goto(BASE + 'print.html?id=' + WID);
+  ok(await until(() => pw.evaluate(() => !!window.__printed), 15000), '출력: 그림 완성');
+  const cr = await pw.evaluate(() => window.__crop);
+  ok(cr && cr.crop && cr.f0 === 5 && cr.f1 === 26 && cr.c0 === 12 && cr.c1 === 17, '출력도 대상 구간만 ' + JSON.stringify(cr));
+  if (process.env.SHOT) { const u = await pw.evaluate(() => png); fs.writeFileSync(process.env.SHOT.replace(/[^/]+$/, 'print_zoom.png'), Buffer.from(u.split(',')[1], 'base64')); await pM.screenshot({ path: process.env.SHOT.replace(/[^/]+$/, 'app_zoom.png'), fullPage: false }); }
+  await pw.goto(BASE + 'print.html?id=' + WID + '&full=1');
+  ok(await until(() => pw.evaluate(() => !!window.__printed && window.__crop && !window.__crop.crop), 15000), '출력 ?full=1 → 전체 도면');
+  const cr2 = await pr.evaluate(() => window.__crop).catch(() => null);
+  ok(!cr2 || !cr2.crop, '대상이 넓은 활동(식탁)은 확대 안 함');
+  await pM.click('.ac-top [data-ac="list"]').catch(() => {});
+
   console.log('⑦ 정비보조 명단');
   await pM.click('.ac-top [data-x="1"], .ac-top [data-ac="list"]').catch(() => {});
   await pM.click('.ac-top [data-x="1"]').catch(() => {});

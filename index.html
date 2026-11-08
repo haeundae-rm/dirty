@@ -235,7 +235,7 @@ main{padding:16px 16px 48px;max-width:760px;margin:0 auto;display:flex;flex-dire
 @media (prefers-reduced-motion:reduce){.confetti{display:none}.thanks div{animation:none}}
 @media (rm-light-only){.stat .big,.sum .left .n,.floor{color:color-mix(in srgb,var(--wc) 55%,#fff)}}
 </style>
-<link rel="stylesheet" href="aplus.css?v=2026.11.08-5">
+<link rel="stylesheet" href="aplus.css?v=2026.11.08-6">
 </head>
 <body>
 <header class="top">
@@ -246,9 +246,9 @@ main{padding:16px 16px 48px;max-width:760px;margin:0 auto;display:flex;flex-dire
 </header>
 <main id="main"><div class="notice"><strong>오늘 배정을 불러오고 있어요.</strong></div></main>
 <div id="sheet"></div>
-<script src="server.js?v=2026.11.08-5"></script>
-<script src="act.js?v=2026.11.08-5"></script>
-<script src="shim.js?v=2026.11.08-5"></script>
+<script src="server.js?v=2026.11.08-6"></script>
+<script src="act.js?v=2026.11.08-6"></script>
+<script src="shim.js?v=2026.11.08-6"></script>
 <script>
 var plan = null, checks = {}, tab = null, dlg = null, busyChg = false, pver = 0;  // pver: 담당 변경 횟수. 변경 전에 출발한 응답의 담당 정보는 버림
 var openCards = {}, openSecs = {};
@@ -1055,7 +1055,7 @@ setInterval(function(){ if (document.visibilityState === 'visible') refresh(); }
       timer = setInterval(function(){ if (document.visibilityState === 'visible' && ac && ac.stage === 'map' && !ac.queue.length && !acBusy && !ac.ask) reload(); }, 2500);
     }
     function openAct(id){
-      ac.stage = 'map'; ac.cur = null; ac.err = ''; ac.pend = {}; draw();
+      ac.stage = 'map'; ac.cur = null; ac.err = ''; ac.pend = {}; ac.full = false; draw();
       acRun('actGet', [id, adminTok || ''], function(d){
         ac.cur = d; var k = 'ac_floor_' + d.id, f = Number(lsGet(k) || 0);
         ac.floor = floors().indexOf(f) >= 0 ? f : firstOpenFloor(); try { lsSet('ac_last', d.id); } catch (e) {}
@@ -1064,8 +1064,23 @@ setInterval(function(){ if (document.visibilityState === 'visible') refresh(); }
     }
     function reload(){ if (!ac || !ac.cur) return; var id = ac.cur.id; google.script.run.withSuccessHandler(function(d){ if (ac && ac.cur && ac.cur.id === id && !ac.queue.length) { ac.cur = d; draw(); } }).actGet(id, adminTok || ''); }
     // ---------- 도면 도구
-    function floors(){ var s = {}; (ac.rooms || []).forEach(function(r){ s[Math.floor(Number(r) / 100)] = 1; }); return Object.keys(s).map(Number).sort(function(a, b){ return b - a; }); }
-    function roomsOf(f){ return (ac.rooms || []).filter(function(r){ return Math.floor(Number(r) / 100) === f; }); }
+    function allFloors(){ var s = {}; (ac.rooms || []).forEach(function(r){ s[Math.floor(Number(r) / 100)] = 1; }); return Object.keys(s).map(Number).sort(function(a, b){ return b - a; }); }
+    // 대상 구간 확대 (11/8): 대상 객실이 있는 층·호수 범위만 보여 줌. 범위가 전체의 70% 넘으면 그대로. '전체 도면 보기'(ac.full)로 전환
+    function view(){
+      var c = ac.cur; if (!c) return { crop: false };
+      if (c._v && c._v.k === c.excl.join(',')) return c._v;
+      var ex = {}; c.excl.forEach(function(r){ ex[r] = 1; });
+      var t = (ac.rooms || []).filter(function(r){ return !ex[r]; }), v = { k: c.excl.join(','), crop: false };
+      if (t.length) {
+        var ls = t.map(function(r){ return Number(r) % 100; }), fs = t.map(function(r){ return Math.floor(Number(r) / 100); });
+        v.l0 = Math.min.apply(null, ls); v.l1 = Math.max.apply(null, ls); v.f0 = Math.min.apply(null, fs); v.f1 = Math.max.apply(null, fs);
+        v.crop = (v.l1 - v.l0 + 1) * (v.f1 - v.f0 + 1) <= 0.7 * 17 * 28;
+      }
+      c._v = v; return v;
+    }
+    function zoomed(){ return !ac.full && view().crop; }
+    function floors(){ var v = view(); return allFloors().filter(function(f){ return !zoomed() || (f >= v.f0 && f <= v.f1); }); }
+    function roomsOf(f){ var v = view(), z = zoomed(); return (ac.rooms || []).filter(function(r){ var l = Number(r) % 100; return Math.floor(Number(r) / 100) === f && (!z || (l >= v.l0 && l <= v.l1)); }); }
     function markOf(r){ var p = ac.pend[r]; if (p) return p.s === '취소' ? null : p; return ac.cur && ac.cur.marks[r] || null; }
     function isEx(r){ return ac.cur && ac.cur.excl.indexOf(r) >= 0; }
     function firstOpenFloor(){ var fs = floors(); for (var i = 0; i < fs.length; i++) if (roomsOf(fs[i]).some(function(r){ return !isEx(r) && !markOf(r); })) return fs[i]; return fs[0]; }
@@ -1194,11 +1209,14 @@ setInterval(function(){ if (document.visibilityState === 'visible') refresh(); }
           return '<button class="ac-t'+cls+p+lk+'" data-ac="room" data-r="'+esc(r)+'"'+(tg.length ? ' style="border-color:'+itemOf(tg[0]).hex+';background:'+tint(tg)+'"' : '')+(x ? ' disabled' : '')+'>'+esc(r)+(tg.length ? dots(tg) : '')+(sub ? '<small>'+esc(sub)+'</small>' : '')+'</button>';
         }).join('')+'</div></div>';
       // 전체 도면 (작게) — 줄을 누르면 그 층으로
-      h += '<div class="ac-card" style="--ac:'+hex+'"><h3 style="font-size:15px">전체 도면 <span style="font-weight:600;color:var(--muted);font-size:13px">줄을 누르면 그 층으로</span></h3><div class="ac-map">'+fs.map(function(fl){
+      var V = view(), Z = zoomed(), L0 = Z ? V.l0 : 1, L1 = Z ? V.l1 : 17, gcol = ' style="grid-template-columns:repeat('+(L1 - L0 + 1)+',1fr)"';
+      var hdr = ''; if (Z) { hdr = '<div class="ac-row" style="cursor:default;background:none;outline:0"><span class="fl"></span><span class="cells"'+gcol+'>'; for (var hl = L0; hl <= L1; hl++) hdr += '<b style="font:700 10px var(--f-num);color:var(--muted);text-align:center">'+hl+'</b>'; hdr += '</span><span class="pc"></span></div>'; }
+      h += '<div class="ac-card" style="--ac:'+hex+'"><h3 style="font-size:15px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">전체 도면 <span style="font-weight:600;color:var(--muted);font-size:13px;flex:1">'+(Z ? '대상 구간만 · '+V.f0+'~'+V.f1+'층 · '+V.l0+'~'+V.l1+'호' : '줄을 누르면 그 층으로')+'</span>'+
+        (V.crop ? '<button class="ghost" style="min-height:36px;border-radius:10px;border:1.5px solid var(--line);background:var(--surface);font:700 13px var(--f-body);padding:0 10px;cursor:pointer" data-ac="full">'+(Z ? '전체 도면 보기' : '대상 구간만 보기')+'</button>' : '')+'</h3><div class="ac-map">'+hdr+fs.map(function(fl){
           var rr = roomsOf(fl), byLine = {}; rr.forEach(function(r){ byLine[Number(r) % 100] = r; });
           var cells = '', t = 0, d = 0;
-          for (var ln = 1; ln <= 17; ln++) { var r = byLine[ln]; if (!r) { cells += '<i class="c e"></i>'; continue; } var m = markOf(r), x = isEx(r); if (!x) { t++; if (m) d++; } var tg = tagsOf(m), bg = ''; if (tg.length) bg = ' style="background:linear-gradient(90deg,'+tg.map(function(k, j){ var c = itemOf(k).hex; return c+' '+(j / tg.length * 100)+'% '+((j + 1) / tg.length * 100)+'%'; }).join(',')+')"'; cells += '<i class="c'+(x ? ' x' : m ? (m.s === '이상' ? ' i' : ' d') : '')+'"'+bg+'></i>'; }
-          return '<button class="ac-row'+(fl === f ? ' on' : '')+'" data-ac="fl" data-v="'+fl+'"><span class="fl">'+fl+'</span><span class="cells">'+cells+'</span><span class="pc">'+(t ? Math.round(d / t * 100) : 0)+'%</span></button>';
+          for (var ln = L0; ln <= L1; ln++) { var r = byLine[ln]; if (!r) { cells += '<i class="c e"></i>'; continue; } var m = markOf(r), x = isEx(r); if (!x) { t++; if (m) d++; } var tg = tagsOf(m), bg = ''; if (tg.length) bg = ' style="background:linear-gradient(90deg,'+tg.map(function(k, j){ var c = itemOf(k).hex; return c+' '+(j / tg.length * 100)+'% '+((j + 1) / tg.length * 100)+'%'; }).join(',')+')"'; cells += '<i class="c'+(x ? ' x' : m ? (m.s === '이상' ? ' i' : ' d') : '')+'"'+bg+'></i>'; }
+          return '<button class="ac-row'+(fl === f ? ' on' : '')+'" data-ac="fl" data-v="'+fl+'"><span class="fl">'+fl+'</span><span class="cells"'+gcol+'>'+cells+'</span><span class="pc">'+(t ? Math.round(d / t * 100) : 0)+'%</span></button>';
         }).join('')+'</div></div>';
       // 이상 객실 목록
       var iss = (ac.rooms || []).filter(function(r){ var m = markOf(r); return m && m.s === '이상'; });
@@ -1356,6 +1374,7 @@ setInterval(function(){ if (document.visibilityState === 'visible') refresh(); }
       if (k === 'list') { ac.stage = 'list'; ac.cur = null; ac.err = ''; ac.f = null; draw(); acRun('actList', [adminTok || ''], function(d){ ac.list = d; draw(); }); return; }
       if (k === 'act') { openAct(id); return; }
       if (k === 'mode') { ac.mode = v; ac.err = ''; draw(); return; }
+      if (k === 'full') { ac.full = !ac.full; var fs2 = floors(); if (fs2.indexOf(ac.floor) < 0) ac.floor = firstOpenFloor(); draw(); return; }
       if (k === 'fl' && v) { ac.floor = Number(v); ac.err = ''; try { lsSet('ac_floor_' + ac.cur.id, v); } catch (e2) {} draw(); var t = document.querySelector('.ac-fh'); if (t && b.classList.contains('ac-row')) t.scrollIntoView({ block: 'start', behavior: 'smooth' }); return; }
       if (k === 'room') {
         if (!ac.cur || ac.cur.status !== '진행') return;
@@ -1482,8 +1501,8 @@ setInterval(function(){ if (document.visibilityState === 'visible') refresh(); }
 </script>
 
 <script>SupShim.post();</script>
-<script src="distcalc.js?v=2026.11.08-5"></script>
-<script src="dist.js?v=2026.11.08-5"></script>
-<script type="module" src="boot.js?v=2026.11.08-5"></script>
+<script src="distcalc.js?v=2026.11.08-6"></script>
+<script src="dist.js?v=2026.11.08-6"></script>
+<script type="module" src="boot.js?v=2026.11.08-6"></script>
 </body>
 </html>
