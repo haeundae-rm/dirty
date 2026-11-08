@@ -8,7 +8,7 @@
 // 관리자 확인은 Firebase 로그인(소장·부소장 계정) + 보안 규칙. 화면의 adminTok 은 '관리자 모드' 표시용 값일 뿐
 (function () {
   'use strict';
-  var APP_VER = '2026.11.08-3';
+  var APP_VER = '2026.11.08-4';
   var TZ = 'Asia/Seoul';
   var API_URL = 'https://script.google.com/macros/s/AKfycbyPvhvScAcDfGqyxdK9pvr8vtewfjAkHsbRBiN04GCNbzE4HL_zZHODWPPb4xUHQb0LCw/exec';
   var ADMINS = { '소장': 'unieshaeundae+admin@gmail.com', '부소장': 'unieshaeundae+sub@gmail.com' };
@@ -26,7 +26,7 @@
 
   var S = {
     store: null, user: null, admin: false, day: '', subs: [],
-    plan: null, planGot: false, rows: [], rowsGot: false, names: null, namesGot: false, relay: null,
+    plan: null, planGot: false, rows: [], rowsGot: false, names: null, namesGot: false, relay: null, roster: null,
     pending: 0, fromCache: true, local: [], sheets: null, ready: false, waiting: [], err: '', reports: 0
   };
 
@@ -171,7 +171,7 @@
     var sh = { '배정': planRows(), '체크': [HEAD['체크'].slice()], '변경': [HEAD['변경'].slice()], '근태': [HEAD['근태'].slice()] };
     // 최근 근무자 이름(중계가 하루 한 번) → '어제 출근' 줄로 넣어 knownNames_ 가 그대로 찾게 함 (오늘 계산엔 안 쓰임)
     var y = shift(S.day || today(), -1), yd = new Date(Date.now() - 864e5);
-    ((S.names && S.names.names) || []).forEach(function (n) { sh['근태'].push([yd, y, String(n), '출근', '', '', '본인', '']); });
+    rosterNames().forEach(function (n) { sh['근태'].push([yd, y, String(n), '출근', '', '', '본인', '']); });
     // 관리자 앱 '더티 배분 만들기'로 다시 만든 배정(src 'app')이면, 그 전에 생긴 담당 변경(넘겨받음·가져옴·인원추가·근무종료 …)은 새 배정부터 다시 시작
     var issued = S.plan && S.plan.src === 'app' ? num(S.plan.issued) : 0;
     if (issued) all = all.filter(function (x) { return x.tab !== '변경' || x.at >= issued; });
@@ -204,6 +204,13 @@
     try { refresh(true); } catch (x) {}
   }
 
+  // ---------- 정비보조 명단 (11/8): 최근 근무자(중계) + 관리자가 넣은 이름 − 관리자가 뺀 이름. sup_meta/roster {add:[], hide:[]} — 관리자만 씀
+  function rosterNames() {
+    var r = S.roster || {}, hide = {}, out = {};
+    (Array.isArray(r.hide) ? r.hide : []).forEach(function (n) { hide[n] = 1; });
+    ((S.names && S.names.names) || []).concat(Array.isArray(r.add) ? r.add : []).forEach(function (n) { n = String(n || '').trim(); if (n && !hide[n] && n !== '관리자') out[n] = 1; });
+    return Object.keys(out).sort();
+  }
   // ---------- 구독
   function unsubAll() { S.subs.forEach(function (u) { try { u(); } catch (e) {} }); S.subs = []; }
   function subscribe() {
@@ -215,6 +222,7 @@
     S.subs.push(st.listenQuery('sup/' + S.day + '/rows', [], function (docs, m) { S.rows = docs; S.rowsGot = true; S.fromCache = !!m.fromCache; S.pending = m.pending || 0; changed(); }, function (e) { subErr('기록', e); }));
     S.subs.push(st.listenDoc('sup_meta/names', function (d) { S.names = d; S.namesGot = true; changed(); }, function (e) { S.namesGot = true; subErr('명단', e); }));
     S.subs.push(st.listenDoc('sup_meta/relay', function (d) { S.relay = d; decorate(); }, function () {}));
+    S.subs.push(st.listenDoc('sup_meta/roster', function (d) { S.roster = d || null; changed(); }, function () {}));
   }
   function subErr(what, e) {
     S.err = what + ' 받기 실패: ' + (e && (e.code || e.message) || e);
@@ -401,6 +409,17 @@
     },
     adminOff: function () { try { S.store.signOut(); } catch (e) {} },
     _S: S, _server: SERVER, _A: A, _act: ACT,
+    // 관리자 '정비보조 명단' (11/8)
+    roster: {
+      recent: function () { return ((S.names && S.names.names) || []).slice(); },
+      get: function () { var r = S.roster || {}; return { add: (r.add || []).slice(), hide: (r.hide || []).slice() }; },
+      names: function () { return rosterNames(); },
+      save: function (add, hide) {
+        if (!S.admin || !S.user) return Promise.reject(new Error('관리자 로그인이 필요해요'));
+        S.roster = { add: add.slice(), hide: hide.slice() }; changed();
+        return S.store.set('sup_meta/roster', { add: add, hide: hide, at: S.store.SERVER_TIME, uid: S.user.uid });
+      }
+    },
     // 관리자 '더티 배분 만들기'(dist.js)용
     dist: {
       isAdmin: function () { return S.admin && !!S.user; },
@@ -411,7 +430,7 @@
         return x && Array.isArray(x.plan) && x.plan.length ? x : null;
       },
       fetchPlan: function (d) { if (d === S.day) return Promise.resolve(S.plan); return S.store.get('sup/' + d).then(function (x) { other[d] = x; return x; }); },
-      knownNames: function () { return ((S.names && S.names.names) || []).slice(); },
+      knownNames: function () { return rosterNames(); },
       getCfg: function () { return S.store.get('sup_meta/distcfg'); },
       setCfg: function (c) { return S.store.set('sup_meta/distcfg', { rule: c.rule, at: S.store.SERVER_TIME, uid: S.user ? S.user.uid : '' }); },
       savePlan: function (d, plan, meta) {

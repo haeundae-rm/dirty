@@ -235,7 +235,7 @@ main{padding:16px 16px 48px;max-width:760px;margin:0 auto;display:flex;flex-dire
 @media (prefers-reduced-motion:reduce){.confetti{display:none}.thanks div{animation:none}}
 @media (rm-light-only){.stat .big,.sum .left .n,.floor{color:color-mix(in srgb,var(--wc) 55%,#fff)}}
 </style>
-<link rel="stylesheet" href="aplus.css?v=2026.11.08-3">
+<link rel="stylesheet" href="aplus.css?v=2026.11.08-4">
 </head>
 <body>
 <header class="top">
@@ -246,9 +246,9 @@ main{padding:16px 16px 48px;max-width:760px;margin:0 auto;display:flex;flex-dire
 </header>
 <main id="main"><div class="notice"><strong>오늘 배정을 불러오고 있어요.</strong></div></main>
 <div id="sheet"></div>
-<script src="server.js?v=2026.11.08-3"></script>
-<script src="act.js?v=2026.11.08-3"></script>
-<script src="shim.js?v=2026.11.08-3"></script>
+<script src="server.js?v=2026.11.08-4"></script>
+<script src="act.js?v=2026.11.08-4"></script>
+<script src="shim.js?v=2026.11.08-4"></script>
 <script>
 var plan = null, checks = {}, tab = null, dlg = null, busyChg = false, pver = 0;  // pver: 담당 변경 횟수. 변경 전에 출발한 응답의 담당 정보는 버림
 var openCards = {}, openSecs = {};
@@ -1344,9 +1344,71 @@ setInterval(function(){ if (document.visibilityState === 'visible') refresh(); }
 })();
 </script>
 
+<script>
+/* 정비보조 명단 (2026-11-08): 관리자 화면 '👥 정비보조 명단' — 새 이름 넣기 · 그만둔 분 빼기 (sup_meta/roster). 이름 고르기·출근·활동판·더티 배분 칩에 같이 쓰임 */
+(function(){
+  try {
+    if (typeof render !== 'function' || !window.SupShim || !SupShim.roster) return;
+    var R = null;
+    var prev = render;
+    render = function(){ prev.apply(this, arguments); try { put(); } catch (e) {} };
+    function put(){
+      var am = document.querySelector('#main .amode');
+      if (am && adminTok && !am.querySelector('.rs-open')) am.insertAdjacentHTML('beforeend', '<button class="ghost rs-open" data-rs="open">👥 정비보조 명단</button>');
+    }
+    function box(){ var b = document.getElementById('rs-pop'); if (!b) { b = document.createElement('div'); b.id = 'rs-pop'; document.body.appendChild(b); } return b; }
+    function draw(){
+      var b = box(); if (!R) { b.innerHTML = ''; return; }
+      var names = SupShim.roster.names(), recent = SupShim.roster.recent();
+      var rows = names.map(function(n){
+        var mine = R.add.indexOf(n) >= 0 && recent.indexOf(n) < 0;
+        return '<div><span><b>'+esc(n)+'</b>'+(mine ? ' <span style="color:var(--muted);font-size:12px">· 직접 넣음</span>' : '')+'</span><button class="ghost" data-rs="hide" data-n="'+esc(n)+'">빼기</button></div>';
+      }).join('');
+      var hid = R.hide.map(function(n){ return '<div><span style="color:var(--muted)">'+esc(n)+'</span><button class="ghost" data-rs="unhide" data-n="'+esc(n)+'">되살리기</button></div>'; }).join('');
+      b.innerHTML = '<div class="ac-pop"><div class="pn" style="max-height:88vh;overflow:auto"><h3>👥 정비보조 명단 '+names.length+'명</h3>'+
+        '<p class="ac-note" style="margin:0;font-size:14px">이름 고르기·출근 체크·활동판·더티 배분에 나오는 이름이에요. 최근 45일 근무한 분은 자동으로 들어와요.</p>'+
+        '<div style="display:flex;gap:8px"><input class="ac-in" id="rs-new" maxlength="20" placeholder="새 이름 (예: 홍길동)" value="'+esc(R.typed || '')+'"><button class="ac-big" style="width:auto;padding:0 18px" data-rs="add">추가</button></div>'+
+        (R.err ? '<p class="ac-err" style="margin:0">'+esc(R.err)+'</p>' : '')+
+        '<div class="ac-list">'+(rows || '<p class="ac-note">아직 이름이 없어요.</p>')+'</div>'+
+        (hid ? '<div class="ac-sub" style="margin-top:6px">뺀 이름 <span style="font-weight:600;color:var(--muted);font-size:12px">그만둔 분 — 목록에 안 나와요</span></div><div class="ac-list">'+hid+'</div>' : '')+
+        '<button class="ac-big" style="background:var(--surface);color:var(--ink);border:1.5px solid var(--line)" data-rs="close">닫기</button></div></div>';
+    }
+    function save(){
+      SupShim.roster.save(R.add, R.hide).then(null, function(e){ if (R) { R.err = '저장 못 함: ' + (e && (e.code || e.message) || e); draw(); } });
+      try { render(); } catch (e) {}
+      draw();
+    }
+    function clean(v){ return String(v || '').replace(/\s+/g, ' ').trim().slice(0, 20); }
+    document.addEventListener('input', function(e){ if (R && e.target.id === 'rs-new') R.typed = e.target.value; });
+    document.addEventListener('keydown', function(e){ if (R && e.target.id === 'rs-new' && e.key === 'Enter') { e.preventDefault(); var x = document.querySelector('[data-rs="add"]'); if (x) x.click(); } });
+    document.addEventListener('click', function(e){
+      var t = e.target.closest && e.target.closest('[data-rs]'); if (!t) return;
+      var k = t.getAttribute('data-rs'), n = t.getAttribute('data-n');
+      if (k === 'open') { var g = SupShim.roster.get(); R = { add: g.add, hide: g.hide, typed: '', err: '' }; draw(); return; }
+      if (!R) return;
+      if (k === 'close') { R = null; draw(); return; }
+      R.err = '';
+      if (k === 'add') {
+        var nm = clean((document.getElementById('rs-new') || {}).value || R.typed);
+        if (!nm) { R.err = '이름을 적어 주세요.'; draw(); return; }
+        if (nm === '관리자') { R.err = "'관리자'는 이름으로 쓸 수 없어요."; draw(); return; }
+        if (SupShim.roster.names().indexOf(nm) >= 0) { R.err = nm + ' 님은 이미 명단에 있어요.'; draw(); return; }
+        R.hide = R.hide.filter(function(x){ return x !== nm; });
+        if (R.add.indexOf(nm) < 0) R.add.push(nm);
+        R.typed = ''; try { note(nm + ' 님을 명단에 넣었어요'); } catch (e2) {}
+        save(); return;
+      }
+      if (k === 'hide' && n) { if (R.hide.indexOf(n) < 0) R.hide.push(n); R.add = R.add.filter(function(x){ return x !== n; }); save(); return; }
+      if (k === 'unhide' && n) { R.hide = R.hide.filter(function(x){ return x !== n; }); if (SupShim.roster.recent().indexOf(n) < 0 && R.add.indexOf(n) < 0) R.add.push(n); save(); return; }
+    });
+    put();
+  } catch (e) { try { console.warn('정비보조 명단을 붙이지 못했어요', e); } catch (e2) {} }
+})();
+</script>
+
 <script>SupShim.post();</script>
-<script src="distcalc.js?v=2026.11.08-3"></script>
-<script src="dist.js?v=2026.11.08-3"></script>
-<script type="module" src="boot.js?v=2026.11.08-3"></script>
+<script src="distcalc.js?v=2026.11.08-4"></script>
+<script src="dist.js?v=2026.11.08-4"></script>
+<script type="module" src="boot.js?v=2026.11.08-4"></script>
 </body>
 </html>

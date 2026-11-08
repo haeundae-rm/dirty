@@ -240,10 +240,34 @@ const openSec = async (p, sec, sel) => until(async () => { await p.evaluate(s =>
   if (durl) fs.writeFileSync(process.env.SHOT || '/tmp/act_print.png', Buffer.from(durl.split(',')[1], 'base64'));
   await pA.screenshot({ path: (process.env.SHOT || '/tmp/act_print.png').replace('print', 'phone'), fullPage: false });
 
+  console.log('⑦ 정비보조 명단');
+  await pM.click('.ac-top [data-x="1"], .ac-top [data-ac="list"]').catch(() => {});
+  await pM.click('.ac-top [data-x="1"]').catch(() => {});
+  ok(await until(async () => (await pM.locator('.amode [data-rs="open"]').count()) === 1, 6000), "관리자 화면에 '👥 정비보조 명단' 버튼");
+  await pM.click('.amode [data-rs="open"]');
+  ok(await until(async () => /정비보조 명단 3명/.test(await txt(pM, '#rs-pop'))), '명단 창: 최근 근무자 3명');
+  await pM.fill('#rs-new', '신입보조'); await pM.click('[data-rs="add"]');
+  ok(await until(() => { const d = db.docs.get('sup_meta/roster'); return d && JSON.stringify(d.add) === '["신입보조"]'; }), "sup_meta/roster.add = ['신입보조']");
+  await pM.fill('#rs-new', '김정비'); await pM.click('[data-rs="add"]');
+  ok(/이미 명단에 있어요/.test(await txt(pM, '#rs-pop')), '같은 이름은 안내');
+  const pR = await phone(browser, db, 'R');
+  ok(await until(async () => (await pR.locator('[data-pick="신입보조"]').count()) === 1, 10000), '근무자 이름 고르기에 신입보조');
+  await pR.click('[data-pick="신입보조"]');
+  await pR.click('[data-att="in"]'); await pR.click('.taskb[data-task="기타 업무"]'); await pR.click('.panel [data-do]');
+  ok(await until(() => rows(db, r => r.tab === '근태' && r.row[2] === '신입보조' && r.row[3] === '출근').length === 1), '신입보조 출근 기록 저장');
+  await pM.click('[data-rs="hide"][data-n="신입보조"]');
+  ok(await until(() => { const d = db.docs.get('sup_meta/roster'); return d && JSON.stringify(d.hide) === '["신입보조"]' && d.add.length === 0; }), "빼기 → hide = ['신입보조']");
+  ok(/뺀 이름/.test(await txt(pM, '#rs-pop')), "창에 '뺀 이름' 목록");
+  await pM.click('[data-rs="unhide"][data-n="신입보조"]');
+  ok(await until(() => { const d = db.docs.get('sup_meta/roster'); return d && d.hide.length === 0 && JSON.stringify(d.add) === '["신입보조"]'; }), '되살리기');
+  await pM.click('[data-rs="close"]');
+  const fz3 = await pR.evaluate(async () => { const S = SupShim._S; try { await S.store.set('sup_meta/roster', { add: ['가짜'], hide: [] }); return 'ok'; } catch (e) { return 'rejected'; } });
+  ok(fz3 === 'rejected', '근무자는 명단을 못 바꿈 (규칙 그대로)');
+
   console.log('⑥ 오류');
-  const errs = [pA, pB, pM, pr].flatMap(p => p.errors.map(e => p.label + ': ' + e));
+  const errs = [pA, pB, pM, pr, pR].flatMap(p => p.errors.map(e => p.label + ': ' + e));
   ok(!errs.length, '화면 오류 0' + (errs.length ? ' → ' + errs.slice(0, 5).join(' | ') : ''));
-  ok(db.log.rejects.filter(r => /^acts\//.test(r.path)).length === 5, '활동판 거절은 일부러 넣은 5건뿐 ' + JSON.stringify(db.log.rejects.map(r => r.path + ':' + r.why)));
+  ok(db.log.rejects.filter(r => /^(acts|sup_meta)\//.test(r.path)).length === 6, '일부러 넣은 위조 거절 6건뿐 ' + JSON.stringify(db.log.rejects.map(r => r.path + ':' + r.why)));
 
   await browser.close();
   console.log('\n결과: ' + pass + ' 통과 / ' + fail + ' 실패');
