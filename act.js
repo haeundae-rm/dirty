@@ -58,6 +58,30 @@
   /**
    * env = { acts(): [{id, …문서}], marks(id): {객실: 문서}, isAdmin(token), workerOk(이름), saveAct(id, 문서), saveMark(id, 객실, 문서), printUrl(id) }
    */
+  // 제외 객실 집합 → 짧은 글 (11/8 도면에서 고르기): 모든 층이 빠진 호수 라인 → '1,4,14-16호', 전체가 빠진 층 → '29-31층', 나머지 → 객실 번호. excl(compact(x)) 는 x 와 같음
+  function ranges(nums) {
+    nums = nums.slice().sort(function (a, b) { return a - b; });
+    var out = [], i = 0;
+    while (i < nums.length) { var j = i; while (j + 1 < nums.length && nums[j + 1] === nums[j] + 1) j++; out.push(j - i >= 2 ? nums[i] + '-' + nums[j] : j === i ? String(nums[i]) : nums[i] + ',' + nums[j]); i = j + 1; }
+    return out.join(',');
+  }
+  function compact(list) {
+    var set = {}; (list || []).forEach(function (r) { r = room(r); if (r) set[r] = 1; });
+    var byLine = {}, byFloor = {}, cov = {};
+    ROOMS.forEach(function (r) { var l = Number(r) % 100, f = Math.floor(Number(r) / 100); (byLine[l] = byLine[l] || []).push(r); (byFloor[f] = byFloor[f] || []).push(r); });
+    var lines = Object.keys(byLine).map(Number).filter(function (l) { return byLine[l].every(function (r) { return set[r]; }); });
+    lines.forEach(function (l) { byLine[l].forEach(function (r) { cov[r] = 1; }); });
+    var floors = Object.keys(byFloor).map(Number).filter(function (f) { return byFloor[f].every(function (r) { return set[r]; }) && byFloor[f].some(function (r) { return !cov[r]; }); });
+    floors.forEach(function (f) { byFloor[f].forEach(function (r) { cov[r] = 1; }); });
+    var rest = ROOMS.filter(function (r) { return set[r] && !cov[r]; });
+    var parts = [];
+    if (lines.length) parts.push(ranges(lines) + '호');
+    if (floors.length) parts.push(ranges(floors) + '층');
+    if (rest.length) parts.push(rest.join(', '));
+    return parts.join(', ');
+  }
+  G.actExcl = { rooms: ROOMS, parse: function (t) { return excl(t); }, bad: function (t) { return badExcl(t); }, compact: compact };
+
   G.makeActServer = function (env) {
     function all() {
       return env.acts().filter(function (d) { return String(d.id).indexOf('CHECK-') !== 0; }).map(function (d) {   // 규칙 점검용 시험 활동은 안 보임
@@ -151,7 +175,7 @@
       var color = COLORS[x.color] ? x.color : '민트';
       var start = day(x.start) || today(), due = day(x.due);
       if (due && due < start) throw new Error('목표일이 시작일보다 빨라요.');
-      var exclText = String(x.excl || '').replace(/\s+/g, ' ').trim().slice(0, 500);
+      var exclText = String(x.excl || '').replace(/\s+/g, ' ').trim().slice(0, 3000);   // 도면에서 고르면 객실 번호가 길어질 수 있어 3000자
       var bad = badExcl(exclText);
       if (bad.length) throw new Error('제외 객실을 확인해 주세요: ' + bad.slice(0, 5).join(', ') + ' (예: 2901, 3001 · 29-31층 · 1,4,14-16호)');
       var memo = String(x.memo || '').replace(/\s+/g, ' ').trim().slice(0, 100);
