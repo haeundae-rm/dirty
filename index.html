@@ -235,7 +235,7 @@ main{padding:16px 16px 48px;max-width:760px;margin:0 auto;display:flex;flex-dire
 @media (prefers-reduced-motion:reduce){.confetti{display:none}.thanks div{animation:none}}
 @media (rm-light-only){.stat .big,.sum .left .n,.floor{color:color-mix(in srgb,var(--wc) 55%,#fff)}}
 </style>
-<link rel="stylesheet" href="aplus.css?v=2026.11.08-8">
+<link rel="stylesheet" href="aplus.css?v=2026.11.08-9">
 </head>
 <body>
 <header class="top">
@@ -246,9 +246,9 @@ main{padding:16px 16px 48px;max-width:760px;margin:0 auto;display:flex;flex-dire
 </header>
 <main id="main"><div class="notice"><strong>오늘 배정을 불러오고 있어요.</strong></div></main>
 <div id="sheet"></div>
-<script src="server.js?v=2026.11.08-8"></script>
-<script src="act.js?v=2026.11.08-8"></script>
-<script src="shim.js?v=2026.11.08-8"></script>
+<script src="server.js?v=2026.11.08-9"></script>
+<script src="act.js?v=2026.11.08-9"></script>
+<script src="shim.js?v=2026.11.08-9"></script>
 <script>
 var plan = null, checks = {}, tab = null, dlg = null, busyChg = false, pver = 0;  // pver: 담당 변경 횟수. 변경 전에 출발한 응답의 담당 정보는 버림
 var openCards = {}, openSecs = {};
@@ -965,6 +965,14 @@ setInterval(function(){ if (document.visibilityState === 'visible') refresh(); }
 .pk .pc.x{background:repeating-linear-gradient(45deg,var(--line),var(--line) 3px,var(--surface) 3px,var(--surface) 6px);color:var(--muted)}
 .pk .pc.m::after{content:"";position:absolute;top:2px;right:2px;width:5px;height:5px;border-radius:50%;background:var(--ink)}
 .pk .e{min-height:28px}
+#pk-area{position:relative;padding:14px;margin:4px -14px 0;touch-action:none;user-select:none;-webkit-user-select:none;cursor:crosshair}
+#pk-rect{position:absolute;display:none;border:2px dashed #C62828;background:rgba(198,40,40,.08);border-radius:4px;pointer-events:none;z-index:2}
+#pk-rect.in{border-color:#1B8A5A;background:rgba(27,138,90,.08)}
+.pk .pc.sel{outline:3px solid #C62828;outline-offset:-1px}
+.pk .pc.sel.in{outline-color:#1B8A5A}
+.pk-mode{display:flex;align-items:center;gap:6px;margin-top:8px;font-size:13px;font-weight:800;color:var(--muted)}
+.pk-mode button{min-height:40px;border-radius:10px;border:1.5px solid var(--line);background:var(--surface);color:var(--ink);font:800 14px var(--f-body);padding:0 12px;cursor:pointer}
+.pk-mode button[aria-pressed="true"]{border-color:var(--navy);box-shadow:0 0 0 2px var(--navy) inset}
 .pk-warn{background:#FFF4E5;border:1.5px solid var(--warn);border-radius:12px;padding:10px 12px;font-size:14px;font-weight:700}
 .ac-grp .rs{font:600 14px/1.6 var(--f-num);color:var(--ink);word-break:keep-all}
 .ac-t.p{opacity:.65}
@@ -1292,14 +1300,15 @@ setInterval(function(){ if (document.visibilityState === 'visible') refresh(); }
       rooms.forEach(function(r){ var f = Math.floor(Number(r) / 100); (fl[f] = fl[f] || {})[Number(r) % 100] = r; });
       var fs = Object.keys(fl).map(Number).sort(function(a, b){ return b - a; }), h = '';
       h += '<div class="ac-card" style="--ac:'+hex+'"><div class="pk-bar"><span class="n" id="pk-sum">'+pkCount()+'</span><button data-ac="pkall">전체 대상</button><button data-ac="pkreset">처음대로</button></div>'+
-        '<p class="ac-note" style="margin:6px 0 0">칸을 누르거나 쓸면(드래그) 제외 ↔ 대상이 바뀌어요. <b>층 번호</b>를 누르면 그 층 전체, <b>위 번호(1~17)</b>를 누르면 모든 층의 그 호수가 한꺼번에 바뀌어요.'+(ac.f && ac.f.id ? ' 점(•)은 이미 체크된 객실이에요.' : '')+'</p>';
-      h += '<div class="pk" id="pk"><span></span>';
+        '<div class="pk-mode"><span>네모로 끌면</span><button data-ac="pkmode" data-v="out" aria-pressed="'+(P.mode !== 'in')+'">⊖ 빼기</button><button data-ac="pkmode" data-v="in" aria-pressed="'+(P.mode === 'in')+'">⊕ 넣기</button></div>'+
+        '<p class="ac-note" style="margin:6px 0 0">빈 곳(도면 바깥 여백 포함)부터 <b>네모를 그리듯 끌면</b> 그 안의 객실이 한꺼번에 빠지거나(⊖) 들어가요(⊕). 칸 하나는 <b>누르면</b> 바뀌어요. <b>층 번호</b>·<b>위 번호(1~17)</b>는 그 층·그 호수 전체.'+(ac.f && ac.f.id ? ' 점(•)은 이미 체크된 객실이에요.' : '')+'</p>';
+      h += '<div id="pk-area"><div id="pk-rect"></div><div class="pk" id="pk"><span></span>';
       for (var l = 1; l <= 17; l++) h += '<button data-ac="pkline" data-v="'+l+'" aria-label="모든 층 '+l+'호">'+l+'</button>';
       fs.forEach(function(f){
         h += '<button data-ac="pkfloor" data-v="'+f+'">'+f+'F</button>';
         for (var l2 = 1; l2 <= 17; l2++) { var r = fl[f][l2]; h += r ? '<i class="pc'+(P.set[r] ? ' x' : '')+(P.marks[r] ? ' m' : '')+'" data-r="'+r+'">'+('0' + l2).slice(-2)+'</i>' : '<span class="e"></span>'; }
       });
-      h += '</div></div>';
+      h += '</div></div></div>';
       if (P.warn) h += '<div class="pk-warn">'+esc(P.warn)+'</div>';
       h += '<button class="ac-big green" data-ac="pkdone">'+(P.warn ? '그래도 이대로 정하기' : '이대로 정하기')+'</button>';
       return h;
@@ -1311,18 +1320,50 @@ setInterval(function(){ if (document.visibilityState === 'visible') refresh(); }
       var all = els.length && els.every(function(e){ return ac.pk.set[e.getAttribute('data-r')]; });
       els.forEach(function(e){ pkPaint(e, !all); }); try { buzz(15); } catch (x) {} pkSum();
     }
+    // 네모 끌기 (12:55): 도면 안이든 바깥 여백이든 누른 곳부터 네모를 그리면, 네모에 걸친 객실을 한꺼번에 빼기(⊖)/넣기(⊕). 거의 안 움직이고 칸을 누르면 그 칸만 바뀜
     var pkDrag = null;
+    function pkCells(){ return [].slice.call(document.querySelectorAll('#pk .pc')); }
+    function pkHit(d){
+      var x0 = Math.min(d.x0, d.x1), x1 = Math.max(d.x0, d.x1), y0 = Math.min(d.y0, d.y1), y1 = Math.max(d.y0, d.y1);
+      return d.cells.filter(function(c){ var b = c.r; return b.right > x0 && b.left < x1 && b.bottom > y0 && b.top < y1; });
+    }
+    function pkShow(d){
+      var area = document.getElementById('pk-area'), box = document.getElementById('pk-rect'); if (!area || !box) return;
+      var a = area.getBoundingClientRect(), x0 = Math.min(d.x0, d.x1), y0 = Math.min(d.y0, d.y1);
+      box.style.display = 'block'; box.className = ac.pk.mode === 'in' ? 'in' : '';
+      box.style.left = (x0 - a.left) + 'px'; box.style.top = (y0 - a.top) + 'px';
+      box.style.width = Math.abs(d.x1 - d.x0) + 'px'; box.style.height = Math.abs(d.y1 - d.y0) + 'px';
+      var hit = {}; pkHit(d).forEach(function(c){ hit[c.id] = 1; });
+      d.cells.forEach(function(c){ c.el.classList.toggle('sel', !!hit[c.id]); c.el.classList.toggle('in', !!hit[c.id] && ac.pk.mode === 'in'); });
+    }
     document.addEventListener('pointerdown', function(e){
-      var c = e.target.closest && e.target.closest('#pk .pc'); if (!c || !ac || !ac.pk) return;
-      e.preventDefault(); pkDrag = { on: !ac.pk.set[c.getAttribute('data-r')], seen: {} };
-      pkDrag.seen[c.getAttribute('data-r')] = 1; pkPaint(c, pkDrag.on); pkSum();
+      if (!ac || !ac.pk || e.button > 0) return;
+      var area = e.target.closest && e.target.closest('#pk-area'); if (!area) return;
+      if (e.target.closest('[data-ac]')) return;   // 층·호수 번호 버튼은 그대로 누르기
+      e.preventDefault();
+      var cell = e.target.closest('#pk .pc');
+      pkDrag = { x0: e.clientX, y0: e.clientY, x1: e.clientX, y1: e.clientY, cell: cell, moved: false,
+        cells: pkCells().map(function(el){ return { el: el, id: el.getAttribute('data-r'), r: el.getBoundingClientRect() }; }) };
+      try { area.setPointerCapture(e.pointerId); } catch (x) {}
     });
     document.addEventListener('pointermove', function(e){
       if (!pkDrag || !ac || !ac.pk) return;
-      var el = document.elementFromPoint(e.clientX, e.clientY), c = el && el.closest && el.closest('#pk .pc'); if (!c) return;
-      var r = c.getAttribute('data-r'); if (pkDrag.seen[r]) return; pkDrag.seen[r] = 1; pkPaint(c, pkDrag.on); pkSum();
+      pkDrag.x1 = e.clientX; pkDrag.y1 = e.clientY;
+      if (!pkDrag.moved && Math.abs(pkDrag.x1 - pkDrag.x0) + Math.abs(pkDrag.y1 - pkDrag.y0) < 6) return;
+      pkDrag.moved = true;
+      if (!pkDrag.raf) pkDrag.raf = requestAnimationFrame(function(){ if (pkDrag) { pkDrag.raf = 0; pkShow(pkDrag); } });
     });
-    ['pointerup', 'pointercancel'].forEach(function(t){ document.addEventListener(t, function(){ pkDrag = null; }); });
+    function pkEnd(){
+      var d = pkDrag; pkDrag = null; if (!d || !ac || !ac.pk) return;
+      var box = document.getElementById('pk-rect'); if (box) box.style.display = 'none';
+      d.cells.forEach(function(c){ c.el.classList.remove('sel', 'in'); });
+      if (!d.moved) { if (d.cell) { pkPaint(d.cell, !ac.pk.set[d.cell.getAttribute('data-r')]); try { buzz(15); } catch (x) {} pkSum(); } return; }
+      var on = ac.pk.mode !== 'in', hit = pkHit(d);
+      hit.forEach(function(c){ pkPaint(c.el, on); });
+      if (hit.length) { try { buzz(20); } catch (x) {} }
+      pkSum();
+    }
+    ['pointerup', 'pointercancel'].forEach(function(t){ document.addEventListener(t, pkEnd); });
     function formHtml(){
       var f = ac.f, cs = Object.keys(ac.colors || {}), h = '';
       h += '<div class="ac-card" style="display:flex;flex-direction:column;gap:12px">'+
@@ -1420,6 +1461,7 @@ setInterval(function(){ if (document.visibilityState === 'visible') refresh(); }
       if (k === 'color' && ac.f) { ac.f.color = v; draw(); return; }
       if (k === 'pick' && ac.f) { pkOpen(); return; }
       if (k === 'pickx' && ac.pk) { ac.pk = null; ac.stage = 'form'; ac.jump = true; draw(); return; }
+      if (k === 'pkmode' && ac.pk) { ac.pk.mode = v; draw(); return; }
       if (k === 'pkall' && ac.pk) { ac.pk.set = {}; ac.pk.warn = ''; draw(); return; }
       if (k === 'pkreset' && ac.pk) { var o = {}; ac.pk.orig.forEach(function(r){ o[r] = 1; }); ac.pk.set = o; ac.pk.warn = ''; draw(); return; }
       if (k === 'pkline' && ac.pk) { var ln = Number(v); pkGroup(function(r){ return Number(r) % 100 === ln; }); return; }
@@ -1521,8 +1563,8 @@ setInterval(function(){ if (document.visibilityState === 'visible') refresh(); }
 </script>
 
 <script>SupShim.post();</script>
-<script src="distcalc.js?v=2026.11.08-8"></script>
-<script src="dist.js?v=2026.11.08-8"></script>
-<script type="module" src="boot.js?v=2026.11.08-8"></script>
+<script src="distcalc.js?v=2026.11.08-9"></script>
+<script src="dist.js?v=2026.11.08-9"></script>
+<script type="module" src="boot.js?v=2026.11.08-9"></script>
 </body>
 </html>

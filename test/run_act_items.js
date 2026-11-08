@@ -239,7 +239,22 @@ const openSec = async (p, sec, sel) => until(async () => { await p.evaluate(s =>
   await pM.mouse.move(b1.x + b1.width / 2, b1.y + b1.height / 2); await pM.mouse.down();
   await pM.mouse.move(b1.x + b1.width * 1.6, b1.y + b1.height / 2, { steps: 4 });
   await pM.mouse.move(b3.x + b3.width / 2, b3.y + b3.height / 2, { steps: 6 }); await pM.mouse.up();
-  ok(/대상 314실/.test((await txt(pM, '#pk-sum')).replace(/\s+/g, ' ')) && await pM.locator('#pk .pc.x[data-r="2102"]').count() === 1, '드래그로 2101~2103 한 번에 제외 (−3)');
+  ok(/대상 314실/.test((await txt(pM, '#pk-sum')).replace(/\s+/g, ' ')) && await pM.locator('#pk .pc.x[data-r="2102"]').count() === 1, '칸에서 시작한 네모로 2101~2103 한 번에 제외 (−3)');
+  // 네모 끌기: 도면 바깥 여백(왼쪽 위)에서 시작해 19~18층 01~03호를 덮기 → 6실 빠짐, 같은 네모를 ⊕ 넣기로 → 다시 들어옴
+  const area = await pM.locator('#pk-area').boundingBox(), c1 = await pM.locator('#pk .pc[data-r="1903"]').boundingBox(), c2 = await pM.locator('#pk .pc[data-r="1801"]').boundingBox();
+  const sx = area.x + 4, sy = c1.y + 2, qx = c1.x + c1.width - 3, qy = c2.y + c2.height - 3;
+  await pM.mouse.move(sx, sy); await pM.mouse.down(); await pM.mouse.move((sx + qx) / 2, (sy + qy) / 2, { steps: 4 });
+  ok(await until(async () => (await pM.locator('#pk-rect').isVisible()) && (await pM.locator('#pk .pc.sel').count()) > 0), '끄는 동안 네모 + 걸친 칸 미리 표시');
+  await pM.mouse.move(qx, qy, { steps: 4 }); await pM.mouse.up();
+  ok(/대상 308실/.test((await txt(pM, '#pk-sum')).replace(/\s+/g, ' ')) && await pM.locator('#pk .pc.x[data-r="1802"]').count() === 1, '바깥 여백부터 네모 끌기 → 6실 한꺼번에 제외 (314 → 308)');
+  await pM.click('[data-ac="pkmode"][data-v="in"]');
+  const c1b = await pM.locator('#pk .pc[data-r="1903"]').boundingBox(), c2b = await pM.locator('#pk .pc[data-r="1801"]').boundingBox(), areab = await pM.locator('#pk-area').boundingBox();
+  await pM.mouse.move(areab.x + 4, c1b.y + 2); await pM.mouse.down(); await pM.mouse.move(c1b.x + c1b.width - 3, c2b.y + c2b.height - 3, { steps: 6 }); await pM.mouse.up();
+  ok(/대상 314실/.test((await txt(pM, '#pk-sum')).replace(/\s+/g, ' ')), "⊕ 넣기 네모 → 다시 대상 (314)");
+  await pM.click('[data-ac="pkmode"][data-v="out"]');
+  await pM.click('#pk .pc[data-r="1705"]');
+  ok(/대상 313실/.test((await txt(pM, '#pk-sum')).replace(/\s+/g, ' ')), '칸 하나 누르기 → 그 칸만 바뀜');
+  await pM.click('#pk .pc[data-r="1705"]');
   if (process.env.SHOT) await pM.screenshot({ path: process.env.SHOT.replace(/[^/]+$/, 'pick.png'), fullPage: true });
   await pM.click('[data-ac="pkdone"]');
   ok(await until(async () => /이미 체크된 2실\(2101·2103\)/.test(await txt(pM, '.pk-warn'))), '체크된 객실을 빼면 경고 (기록은 남음)');
