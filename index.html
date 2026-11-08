@@ -235,7 +235,7 @@ main{padding:16px 16px 48px;max-width:760px;margin:0 auto;display:flex;flex-dire
 @media (prefers-reduced-motion:reduce){.confetti{display:none}.thanks div{animation:none}}
 @media (rm-light-only){.stat .big,.sum .left .n,.floor{color:color-mix(in srgb,var(--wc) 55%,#fff)}}
 </style>
-<link rel="stylesheet" href="aplus.css?v=2026.11.08-7">
+<link rel="stylesheet" href="aplus.css?v=2026.11.08-8">
 </head>
 <body>
 <header class="top">
@@ -246,9 +246,9 @@ main{padding:16px 16px 48px;max-width:760px;margin:0 auto;display:flex;flex-dire
 </header>
 <main id="main"><div class="notice"><strong>오늘 배정을 불러오고 있어요.</strong></div></main>
 <div id="sheet"></div>
-<script src="server.js?v=2026.11.08-7"></script>
-<script src="act.js?v=2026.11.08-7"></script>
-<script src="shim.js?v=2026.11.08-7"></script>
+<script src="server.js?v=2026.11.08-8"></script>
+<script src="act.js?v=2026.11.08-8"></script>
+<script src="shim.js?v=2026.11.08-8"></script>
 <script>
 var plan = null, checks = {}, tab = null, dlg = null, busyChg = false, pver = 0;  // pver: 담당 변경 횟수. 변경 전에 출발한 응답의 담당 정보는 버림
 var openCards = {}, openSecs = {};
@@ -1165,16 +1165,16 @@ setInterval(function(){ if (document.visibilityState === 'visible') refresh(); }
       var A2 = ac.arch, h = '';
       if (ac.err) h += '<p class="ac-err">'+esc(ac.err)+'</p>';
       if (!A2) return h + '<div class="ac-card">불러오는 중…</div>';
-      h += '<p class="ac-note" style="margin:0 2px">보관한 활동이에요. 도면 보기·출력이 되고, \'다시 꺼내기\'로 목록에 돌려놓을 수 있어요. 체크 기록이 하나도 없는 활동(시험·잘못 만든 것)만 완전히 지울 수 있어요.</p>';
+      h += '<p class="ac-note" style="margin:0 2px">보관한 활동이에요. 도면 보기·출력이 되고, \'다시 꺼내기\'로 목록에 돌려놓을 수 있어요.</p>';
       if (!A2.acts.length) return h + '<div class="ac-card"><p style="margin:0;font-size:16px">보관한 활동이 없어요.</p></div>';
       return h + A2.acts.map(function(a){
-        var s2 = a.stats, ask = ac.askId === a.id ? ac.askKind : '', can = a.ready && !a.docs;
+        var s2 = a.stats, ask = ac.askId === a.id ? ac.askKind : '', can = a.ready;
         return '<div class="ac-item"><div class="t"><span class="ac-dot" style="background:'+a.hex+'"></span>'+esc(a.name)+'<span class="ac-badge">보관</span></div>'+
           '<div class="m">'+esc(md(a.start))+(a.ended ? ' ~ '+esc(md(kday(a.ended))) : '')+' · 처리 '+s2.proc+' / '+s2.target+'실 ('+s2.pct+'%) · 체크 기록 '+(a.ready ? a.docs+'건' : '확인 중')+'</div>'+
           '<div class="acts2"><button class="go" data-ac="act" data-id="'+esc(a.id)+'">도면 보기</button>'+printLink(a, false)+
           '<button data-ac="st" data-k="꺼내기" data-id="'+esc(a.id)+'">다시 꺼내기</button>'+
-          (can ? '<button class="'+(ask === '삭제' ? 'ask' : '')+'" data-ac="st" data-k="삭제" data-id="'+esc(a.id)+'">'+(ask === '삭제' ? '한 번 더 누르면 완전히 지워요' : '🗑 완전 삭제')+'</button>'
-               : '<span class="ac-note" style="margin:0;align-self:center">'+(a.ready ? '체크 기록이 있어 삭제 불가 (실적 자료)' : '')+'</span>')+'</div></div>';
+          (can ? '<button class="'+(ask === '삭제' ? 'ask' : '')+'" data-ac="st" data-k="삭제" data-id="'+esc(a.id)+'">'+(ask === '삭제' ? (a.docs ? '한 번 더 누르면 체크 '+a.docs+'건까지 모두 지워요' : '한 번 더 누르면 완전히 지워요') : '🗑 완전 삭제'+(a.docs ? ' (체크 '+a.docs+'건 포함)' : ''))+'</button>' : '')+'</div>'+
+          (ask === '삭제' && a.docs ? '<p class="ac-note" style="margin:0;color:var(--warn);font-weight:800">앱에서는 되돌릴 수 없어요. 구글 시트 \'활동체크\' 탭 기록은 그대로 남아요.</p>' : '')+'</div>';
       }).join('');
     }
     // 관리자 현황 상세: 날짜별 처리(최근 14일) · 층별 표 · 사람별 (전체 / 오늘)
@@ -1521,8 +1521,8 @@ setInterval(function(){ if (document.visibilityState === 'visible') refresh(); }
 </script>
 
 <script>SupShim.post();</script>
-<script src="distcalc.js?v=2026.11.08-7"></script>
-<script src="dist.js?v=2026.11.08-7"></script>
-<script type="module" src="boot.js?v=2026.11.08-7"></script>
+<script src="distcalc.js?v=2026.11.08-8"></script>
+<script src="dist.js?v=2026.11.08-8"></script>
+<script type="module" src="boot.js?v=2026.11.08-8"></script>
 </body>
 </html>

@@ -313,9 +313,7 @@ const openSec = async (p, sec, sel) => until(async () => { await p.evaluate(s =>
   await pM.click('[data-ac="arch"]');
   ok(await until(async () => /IBK 와인 세팅/.test(await txt(pM, '.ac')) && /식탁 노후도 조사/.test(await txt(pM, '.ac')) && /체크 기록 0건/.test(await txt(pM, '.ac'))), '보관함: 두 활동 + 체크 건수');
   ok(await pM.locator('[data-ac="st"][data-k="삭제"][data-id="' + WID + '"]').count() === 1, '체크 0건(IBK)은 완전 삭제 버튼');
-  ok(await pM.locator('[data-ac="st"][data-k="삭제"][data-id="' + NID + '"]').count() === 0 && /삭제 불가/.test(await txt(pM, '.ac')), '체크 있는 활동(식탁)은 삭제 불가');
-  const tryDel = await pM.evaluate(async (id) => new Promise(res => google.script.run.withSuccessHandler(() => res('ok')).withFailureHandler(e => res(String(e && e.message || e))).actStatus(SupShim._S && SupShim._server.adminToken_(), id, '삭제')), NID);
-  ok(/지울 수 없어요/.test(tryDel), '계산에서도 체크 있는 활동 삭제 거절: ' + tryDel);
+  ok(/완전 삭제 \(체크 \d+건 포함\)/.test(await txt(pM, '[data-ac="st"][data-k="삭제"][data-id="' + NID + '"]')), "체크 있는 활동(식탁)은 '완전 삭제 (체크 n건 포함)'");
   await pM.click('[data-ac="act"][data-id="' + WID + '"]');
   ok(await until(async () => /IBK 와인 세팅/.test(await txt(pM, '.ac-top'))), '보관 활동도 도면 보기');
   await pM.click('.ac-top [data-ac="list"]'); await pM.click('[data-ac="arch"]');
@@ -330,6 +328,25 @@ const openSec = async (p, sec, sel) => until(async () => { await p.evaluate(s =>
   ok(await until(async () => /보관한 활동이 없어요/.test(await txt(pM, '.ac'))), '보관함 비었음');
   await pM.click('.ac-top [data-ac="list"]');
   ok(await until(async () => /식탁 노후도 조사/.test(await txt(pM, '.ac')) && !/IBK/.test(await txt(pM, '.ac'))), '목록: 식탁(끝남) 있음 · IBK 없음');
+  // 체크 기록이 있는 활동도 삭제 (12:38)
+  const nMarks = [...db.docs.keys()].filter(k => k.startsWith('acts/' + NID + '/marks/')).length;
+  await pM.click('[data-ac="st"][data-k="보관"][data-id="' + NID + '"]'); await pM.click('[data-ac="st"][data-k="보관"][data-id="' + NID + '"]');
+  await until(() => db.docs.get('acts/' + NID).status === '보관');
+  await pM.click('[data-ac="arch"]');
+  await until(async () => (await pM.locator('[data-ac="st"][data-k="삭제"][data-id="' + NID + '"]').count()) === 1);
+  await pM.click('[data-ac="st"][data-k="삭제"][data-id="' + NID + '"]');
+  ok(new RegExp('체크 ' + nMarks + '건까지 모두 지워요').test(await txt(pM, '[data-ac="st"][data-k="삭제"][data-id="' + NID + '"]')) && /되돌릴 수 없어요/.test(await txt(pM, '.ac')), '체크 ' + nMarks + '건 경고 + 되돌릴 수 없음 안내');
+  await pM.click('[data-ac="st"][data-k="삭제"][data-id="' + NID + '"]');
+  ok(await until(() => !db.docs.has('acts/' + NID) && ![...db.docs.keys()].some(k => k.startsWith('acts/' + NID + '/')), 8000), '활동 문서 + 체크 ' + nMarks + '건 모두 지워짐');
+  const okE = await until(async () => /보관한 활동이 없어요/.test(await txt(pM, '.ac')));
+  if (!okE) console.log('DEBUG', JSON.stringify(await pM.evaluate(() => ({ html: (document.querySelector('#sheet') || {}).innerHTML.slice(0, 600), errs: window.__errs }))), pM.errors.slice(-3));
+  ok(okE, '보관함 비었음 (체크 있던 활동 삭제 뒤)');
+  ok(await until(() => { const d = db.docs.get('sup_meta/acts_deleted'); return d && d.ids.includes(NID) && d.ids.includes(WID); }), '지운 활동 번호 기록 (sup_meta/acts_deleted)');
+  await pM.click('.ac-top [data-ac="list"]');
+  await until(async () => (await pM.locator('[data-ac="new"]').count()) === 1);
+  await pM.click('[data-ac="new"]'); await pM.fill('#ac-name', '새 시험'); await pM.click('[data-ac="save"]');
+  const N3 = 'A' + DAY.slice(2).replace(/-/g, '') + '-3';
+  ok(await until(() => { const d = db.docs.get('acts/' + N3); return d && d.name === '새 시험'; }), '새 활동 번호는 지운 번호(-1·-2)를 건너뛰고 ' + N3);
 
   console.log('⑦ 정비보조 명단');
   await pM.click('.ac-top [data-x="1"], .ac-top [data-ac="list"]').catch(() => {});

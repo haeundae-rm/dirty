@@ -8,7 +8,7 @@
 // 관리자 확인은 Firebase 로그인(소장·부소장 계정) + 보안 규칙. 화면의 adminTok 은 '관리자 모드' 표시용 값일 뿐
 (function () {
   'use strict';
-  var APP_VER = '2026.11.08-7';
+  var APP_VER = '2026.11.08-8';
   var TZ = 'Asia/Seoul';
   var API_URL = 'https://script.google.com/macros/s/AKfycbyPvhvScAcDfGqyxdK9pvr8vtewfjAkHsbRBiN04GCNbzE4HL_zZHODWPPb4xUHQb0LCw/exec';
   var ADMINS = { '소장': 'unieshaeundae+admin@gmail.com', '부소장': 'unieshaeundae+sub@gmail.com' };
@@ -96,13 +96,13 @@
   var TOKEN = SERVER.adminToken_();
 
   // ---------- 객실 활동판 (2부): 활동판을 처음 열 때부터 acts 문서들을 실시간으로 받아 act.js 로 계산
-  var A = { started: false, got: false, docs: {}, marks: {}, mgot: {}, msubs: {}, waiting: [] };
+  var A = { started: false, got: false, docs: {}, marks: {}, mgot: {}, msubs: {}, waiting: [], gone: {} };
   function actStart() {
     if (A.started || !S.store) return;
     A.started = true;
     S.store.listenQuery('acts', [], function (docs, meta) {
       if (!A.got && !docs.length && meta && meta.fromCache) { cacheWait('acts', function () { A.got = true; actChanged(); }); return; }   // 휴대폰 보관함이 비어 있을 때 첫 '빈 결과'는 기다림
-      var m = {}; docs.forEach(function (d) { m[d.id] = d.data; });
+      var m = {}; docs.forEach(function (d) { if (!A.gone[d.id]) m[d.id] = d.data; });   // 방금 지운 활동은 서버 삭제가 끝나기 전에도 다시 안 보이게
       A.docs = m; A.got = true;
       Object.keys(m).forEach(function (id) { if (m[id] && (m[id].status !== '보관' || S.admin)) marksSub(id); });   // 관리자는 보관함 활동 체크도 받음 (보관함 보기·삭제 가능 여부)
       actChanged();
@@ -129,10 +129,16 @@
     acts: function () { return Object.keys(A.docs).filter(function (k) { return A.docs[k]; }).map(function (k) { var o = { id: k }, d = A.docs[k]; for (var x in d) o[x] = d[x]; return o; }); },
     marks: function (id) { return A.marks[id] || {}; },
     marksReady: function (id) { return !!A.mgot[id]; },
-    deleteAct: function (id) {
+    usedId: function (id) { return !!A.gone[id]; },
+    deleteAct: function (id, rooms) {
       if (!S.user || !S.admin) throw new Error('관리자 로그인이 필요해요.');
-      delete A.docs[id];
-      S.store.del('acts/' + id).then(null, function (e) { actRejected('활동 삭제 ' + id, e); });
+      delete A.docs[id]; A.gone[id] = 1;
+      var st = S.store;
+      st.set('sup_meta/acts_deleted', { ids: Object.keys(A.gone).slice(-500), at: st.SERVER_TIME, uid: S.user.uid }).then(null, function () {});
+      Promise.all((rooms || []).map(function (r) { return st.del('acts/' + id + '/marks/' + r); }))   // 체크 문서 먼저 지우고
+        .then(function () { return st.del('acts/' + id); })   // 활동 문서
+        .then(null, function (e) { actRejected('활동 삭제 ' + id, e); });
+      A.marks[id] = {};
     },
     isAdmin: function (t) { return S.admin && !!t && t === TOKEN; },
     workerOk: function (nm) { try { var st = SERVER.state_(); return (st.workers || []).some(function (w) { return w.name === nm; }) || (st.known || []).indexOf(nm) >= 0; } catch (e) { return false; } },
@@ -229,6 +235,7 @@
     S.subs.push(st.listenDoc('sup_meta/names', function (d) { S.names = d; S.namesGot = true; changed(); }, function (e) { S.namesGot = true; subErr('명단', e); }));
     S.subs.push(st.listenDoc('sup_meta/relay', function (d) { S.relay = d; decorate(); }, function () {}));
     S.subs.push(st.listenDoc('sup_meta/roster', function (d) { S.roster = d || null; changed(); }, function () {}));
+    S.subs.push(st.listenDoc('sup_meta/acts_deleted', function (d) { (d && Array.isArray(d.ids) ? d.ids : []).forEach(function (x) { A.gone[x] = 1; }); }, function () {}));   // 지운 활동 ID (같은 ID 다시 안 씀)
   }
   function subErr(what, e) {
     S.err = what + ' 받기 실패: ' + (e && (e.code || e.message) || e);

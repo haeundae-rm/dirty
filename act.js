@@ -201,13 +201,13 @@
       } else {
         if (list.some(function (q) { return q.status === '진행' && q.name === name; })) throw new Error("'" + name + "' 활동이 이미 진행 중이에요.");
         var base = 'A' + today().slice(2).replace(/-/g, ''), k = 1;
-        while (raw.some(function (q) { return q.id === base + '-' + k; })) k++;
+        while (raw.some(function (q) { return q.id === base + '-' + k; }) || (env.usedId && env.usedId(base + '-' + k))) k++;   // 지운 활동 번호도 다시 안 씀 (시트 기록과 섞이지 않게)
         id = base + '-' + k;
         env.saveAct(id, { name: name, color: color, start: start, due: due, exclText: exclText, memo: memo, items: its, doneName: doneName, status: '진행', made: new Date(), ended: null });
       }
       var out = actList(token); out.saved = id; return out;
     }
-    /** 보관함 (11/8): 보관한 활동 + 체크 건수(취소 포함 문서 수) — 체크가 하나도 없는 활동만 완전 삭제 가능 */
+    /** 보관함 (11/8): 보관한 활동 + 체크 건수(취소 포함 문서 수) — 완전 삭제는 보관함에서만, 두 번 눌러야 */
     function actArchived(token) {
       needAdmin(token);
       return { today: today(), acts: all().filter(function (a) { return a.status === '보관'; }).reverse().map(function (a) {
@@ -226,9 +226,7 @@
       if (kind === '삭제') {
         if (a.status !== '보관') throw new Error('보관함에 있는 활동만 지울 수 있어요.');
         if (env.marksReady && !env.marksReady(a.id)) throw new Error('체크 기록을 확인하는 중이에요. 잠시 뒤 다시 눌러 주세요.');
-        var n = Object.keys(env.marks(a.id) || {}).length;
-        if (n) throw new Error('체크 기록이 ' + n + '건 있어서 지울 수 없어요. 실적 자료라 보관만 돼요.');
-        env.deleteAct(a.id); return actArchived(token);
+        env.deleteAct(a.id, Object.keys(env.marks(a.id) || {})); return actArchived(token);   // (12:38) 체크 기록이 있어도 관리자는 지울 수 있음 — 체크 문서 먼저, 활동 문서 나중. 시트 '활동체크' 탭 기록은 남음
       }
       if (kind === '잠그기' || kind === '잠금 풀기') { env.saveAct(a.id, docOf(a, { lockAt: kind === '잠그기' ? '__now' : null })); return actGet(a.id, token); }   // '__now' = 서버 시각
       env.saveAct(a.id, docOf(a, kind === '끝내기' ? { status: '끝남', ended: new Date() } : kind === '다시 열기' ? { status: '진행', ended: null } : { status: '보관' }));
