@@ -1067,18 +1067,23 @@ setInterval(function(){ if (document.visibilityState === 'visible') refresh(); }
     }
     // ---------- 점검 항목 · 잠금 (2026-11-08)
     function its(){ return (ac && ac.cur && ac.cur.items) || []; }
+    function doneOf(a){ return (a && a.doneName) || ((a && a.items && a.items.length) ? '이상 없음' : '완료'); }   // 활동마다 '완료' 이름 (예: 정비 완료)
     function itemOf(k){ return its().filter(function(i){ return i.k === k; })[0]; }
     function tagsOf(m){ return m && m.s === '이상' ? (m.t || []).filter(function(k){ return itemOf(k); }) : []; }
     function dots(t){ return '<span class="ac-dots">'+t.map(function(k){ var i = itemOf(k); return '<b style="background:'+i.hex+'">'+esc(k)+'</b>'; }).join('')+'</span>'; }
+    function tint(t){   // 칸 바탕 = 결과 색(연하게). 여러 개면 칸을 나눠 칠함
+      var cs = t.map(function(k){ return 'color-mix(in srgb,'+itemOf(k).hex+' 24%,var(--surface))'; });
+      return cs.length === 1 ? cs[0] : 'linear-gradient(90deg,'+cs.map(function(c, j){ return c+' '+(j / cs.length * 100)+'% '+((j + 1) / cs.length * 100)+'%'; }).join(',')+')';
+    }
     function kday(at){ try { return new Date(at).toLocaleDateString('en-CA', { timeZone: 'Asia/Seoul' }); } catch (e) { return ''; } }
     function locked(r, m){   // 지난 날짜에 체크된 칸 — 근무자는 못 바꿈 (관리자는 됨)
       if (adminTok || !m || !ac.cur || ac.pend[r] || !m.at) return false;
       var d = kday(m.at), t = ac.cur.today || (ac.list && ac.list.today) || '';
       return !!(d && t && d < t);
     }
-    function legend(items, cnt, hex, done){
+    function legend(items, cnt, hex, done, dn){
       if (!items || !items.length) return '';
-      return '<div class="ac-legend"><span><span class="ac-dot" style="background:'+hex+'"></span>이상 없음 <b>'+(done || 0)+'</b></span>'+items.map(function(i){
+      return '<div class="ac-legend"><span><span class="ac-dot" style="background:'+hex+'"></span>'+esc(dn || '이상 없음')+' <b>'+(done || 0)+'</b></span>'+items.map(function(i){
         var n = (cnt || {})[i.k] || 0; return '<span class="'+(n ? '' : 'z')+'"><b class="ac-n" style="background:'+i.hex+'">'+esc(i.k)+'</b>'+esc(i.n)+' <b>'+n+'</b></span>';
       }).join('')+'</div>';
     }
@@ -1109,7 +1114,7 @@ setInterval(function(){ if (document.visibilityState === 'visible') refresh(); }
       h += L.map(function(a){
         var s = a.stats, ask = ac.askId === a.id ? ac.askKind : '';
         return '<div class="ac-item"><div class="t"><span class="ac-dot" style="background:'+a.hex+'"></span>'+esc(a.name)+(a.status === '진행' ? '<span class="ac-badge live">진행 중</span>' : '<span class="ac-badge">'+esc(a.status)+'</span>')+'</div>'+
-          '<div class="m">처리 '+s.proc+' / '+s.target+'실 ('+s.pct+'%)'+(s.issue ? ' · <b style="color:#C62828">이상 '+s.issue+'</b>' : '')+(s.today ? ' · 오늘 '+s.today+'실' : '')+(a.due ? ' · 목표 '+md(a.due) : '')+'</div>'+bar(s, a.hex)+legend(a.items, s.items, a.hex, s.done)+
+          '<div class="m">처리 '+s.proc+' / '+s.target+'실 ('+s.pct+'%)'+(s.issue ? ' · <b style="color:#C62828">이상 '+s.issue+'</b>' : '')+(s.today ? ' · 오늘 '+s.today+'실' : '')+(a.due ? ' · 목표 '+md(a.due) : '')+'</div>'+bar(s, a.hex)+legend(a.items, s.items, a.hex, s.done, doneOf(a))+
           (a.memo ? '<div class="m">'+esc(a.memo)+'</div>' : '')+
           '<div class="acts2"><button class="go" data-ac="act" data-id="'+esc(a.id)+'">'+(adminTok ? '도면 열기' : '체크하러 가기')+'</button>'+printLink(a, false)+
           (adminTok ? '<button data-ac="edit" data-id="'+esc(a.id)+'">수정</button>'+
@@ -1149,13 +1154,13 @@ setInterval(function(){ if (document.visibilityState === 'visible') refresh(); }
       var a = ac.cur; if (!a) return '<div class="ac-card">'+(ac.err ? '<p class="ac-err">'+esc(ac.err)+'</p>' : '도면 불러오는 중…')+'</div>';
       var s = stats(), hex = a.hex, fs = floors(), f = ac.floor, h = '';
       h += '<div class="ac-card" style="--ac:'+hex+'"><h3><span class="ac-dot" style="background:'+hex+'"></span>'+esc(a.name)+'</h3>'+
-        '<div class="ac-sum">처리 <b>'+s.proc+'</b> / '+s.target+'실 · <b>'+s.pct+'%</b>'+(s.issue ? ' · <span style="color:#C62828">'+(its().length ? '항목 있음 ' : '이상 ')+s.issue+'</span>' : '')+'</div>'+bar(s, hex)+legend(its(), s.items, hex, s.done)+
+        '<div class="ac-sum">처리 <b>'+s.proc+'</b> / '+s.target+'실 · <b>'+s.pct+'%</b>'+(s.issue ? ' · <span style="color:#C62828">'+(its().length ? '항목 있음 ' : '이상 ')+s.issue+'</span>' : '')+'</div>'+bar(s, hex)+legend(its(), s.items, hex, s.done, doneOf(a))+
         (a.due ? '<p class="ac-note">목표 '+md(a.due)+(a.memo ? ' · '+esc(a.memo) : '')+'</p>' : a.memo ? '<p class="ac-note">'+esc(a.memo)+'</p>' : '')+'</div>';
       h += printLink(a, true);
       if (a.status !== '진행') h += '<div class="ac-card"><p class="ac-err" style="color:var(--muted)">끝난 활동이라 보기만 할 수 있어요.</p></div>';
-      else if (its().length) h += '<div class="ac-seg"><button data-ac="mode" data-v="done" aria-pressed="'+(ac.mode === 'done')+'">✔ 이상 없음</button><button class="iss" data-ac="mode" data-v="issue" aria-pressed="'+(ac.mode === 'issue')+'">🎨 항목 체크</button></div>'+
-        '<p class="ac-note" style="margin:-4px 2px 0">'+(ac.mode === 'issue' ? '객실을 누르면 해당하는 항목을 모두 골라요. 끝나면 \'이상 없음\'으로 돌아오세요.' : '객실을 누르면 이상 없음, 한 번 더 누르면 취소돼요.')+'</p>';
-      else h += '<div class="ac-seg"><button data-ac="mode" data-v="done" aria-pressed="'+(ac.mode === 'done')+'">✔ 완료 체크</button><button class="iss" data-ac="mode" data-v="issue" aria-pressed="'+(ac.mode === 'issue')+'">❗ 이상 표시</button></div>'+
+      else if (its().length) h += '<div class="ac-seg"><button data-ac="mode" data-v="done" aria-pressed="'+(ac.mode === 'done')+'">✔ '+esc(doneOf(a))+'</button><button class="iss" data-ac="mode" data-v="issue" aria-pressed="'+(ac.mode === 'issue')+'">🎨 항목 체크</button></div>'+
+        '<p class="ac-note" style="margin:-4px 2px 0">'+(ac.mode === 'issue' ? '객실을 누르면 해당하는 항목을 모두 골라요. 끝나면 \''+esc(doneOf(a))+'\'(으)로 돌아오세요.' : '객실을 누르면 '+esc(doneOf(a))+', 한 번 더 누르면 취소돼요.')+'</p>';
+      else h += '<div class="ac-seg"><button data-ac="mode" data-v="done" aria-pressed="'+(ac.mode === 'done')+'">✔ '+esc(a.doneName || '완료 체크')+'</button><button class="iss" data-ac="mode" data-v="issue" aria-pressed="'+(ac.mode === 'issue')+'">❗ 이상 표시</button></div>'+
         '<p class="ac-note" style="margin:-4px 2px 0">'+(ac.mode === 'issue' ? '객실을 누르면 이상 내용을 적어요. 끝나면 \'완료 체크\'로 돌아오세요.' : '객실을 누르면 완료, 한 번 더 누르면 취소돼요.')+'</p>';
       if (ac.err) h += '<p class="ac-err">'+esc(ac.err)+'</p>';
       // 한 층 (크게)
@@ -1163,8 +1168,8 @@ setInterval(function(){ if (document.visibilityState === 'visible') refresh(); }
       h += '<div class="ac-card" style="--ac:'+hex+'"><div class="ac-fh"><button data-ac="fl" data-v="'+(fs[i - 1] || '')+'"'+(i > 0 ? '' : ' disabled')+' aria-label="위층">▲</button><b>'+f+'층 <span style="font-size:15px;color:var(--muted)">'+fd+' / '+ft+'</span></b><button data-ac="fl" data-v="'+(fs[i + 1] || '')+'"'+(i < fs.length - 1 ? '' : ' disabled')+' aria-label="아래층">▼</button></div>'+
         '<div class="ac-tiles">'+rs.map(function(r){
           var m = markOf(r), x = isEx(r), tg = tagsOf(m), cls = x ? ' x' : m ? (m.s === '이상' ? (tg.length ? ' i k' : ' i') : ' d') : '', p = ac.pend[r] ? ' p' : '', lk = !x && locked(r, m) ? ' l' : '';
-          var sub = x ? '대상 아님' : m ? (m.s === '이상' ? (tg.length ? '' : (m.memo || '이상')) : (m.w && m.w !== who() ? m.w : its().length ? '이상 없음' : '완료')) : '';
-          return '<button class="ac-t'+cls+p+lk+'" data-ac="room" data-r="'+esc(r)+'"'+(tg.length ? ' style="border-color:'+itemOf(tg[0]).hex+'"' : '')+(x ? ' disabled' : '')+'>'+esc(r)+(tg.length ? dots(tg) : '')+(sub ? '<small>'+esc(sub)+'</small>' : '')+'</button>';
+          var sub = x ? '대상 아님' : m ? (m.s === '이상' ? (tg.length ? '' : (m.memo || '이상')) : (m.w && m.w !== who() ? m.w : doneOf(ac.cur))) : '';
+          return '<button class="ac-t'+cls+p+lk+'" data-ac="room" data-r="'+esc(r)+'"'+(tg.length ? ' style="border-color:'+itemOf(tg[0]).hex+';background:'+tint(tg)+'"' : '')+(x ? ' disabled' : '')+'>'+esc(r)+(tg.length ? dots(tg) : '')+(sub ? '<small>'+esc(sub)+'</small>' : '')+'</button>';
         }).join('')+'</div></div>';
       // 전체 도면 (작게) — 줄을 누르면 그 층으로
       h += '<div class="ac-card" style="--ac:'+hex+'"><h3 style="font-size:15px">전체 도면 <span style="font-weight:600;color:var(--muted);font-size:13px">줄을 누르면 그 층으로</span></h3><div class="ac-map">'+fs.map(function(fl){
@@ -1199,7 +1204,7 @@ setInterval(function(){ if (document.visibilityState === 'visible') refresh(); }
           '<input class="ac-in" id="ac-memo" maxlength="30" placeholder="메모 (선택) 예: 의자 4개 중 1개" value="'+esc(memo || '')+'">'+
           (ac.ask.err ? '<p class="ac-err" style="margin:0">'+esc(ac.ask.err)+'</p>' : '')+
           '<button class="ac-big" style="background:#C62828" data-ac="issave">'+(sel.length ? sel.length+'개 저장' : '저장')+'</button>'+
-          (m ? '<div class="ac-row2"><button class="ac-big green" data-ac="todone">✔ 이상 없음으로</button><button class="ac-big" style="background:var(--muted)" data-ac="unmark">체크 지우기</button></div>' : '')+X+'</div></div>';
+          (m ? '<div class="ac-row2"><button class="ac-big green" data-ac="todone">✔ '+esc(doneOf(ac.cur))+'(으)로</button><button class="ac-big" style="background:var(--muted)" data-ac="unmark">체크 지우기</button></div>' : '')+X+'</div></div>';
       }
       return '<div class="ac-pop"><div class="pn"><h3>'+esc(r)+'호 · 이상 있음</h3><p class="ac-note" style="margin:0;font-size:15px">무엇이 문제인지 골라 주세요. 직접 적어도 돼요.</p>'+
         '<div class="ac-chips">'+MEMOS.map(function(x){ return '<button data-ac="memo" data-v="'+esc(x)+'" aria-pressed="'+(memo === x)+'">'+esc(x)+'</button>'; }).join('')+'</div>'+
@@ -1216,7 +1221,8 @@ setInterval(function(){ if (document.visibilityState === 'visible') refresh(); }
         '<div class="ac-row2"><label class="ac-lab">시작일<input class="ac-in" type="date" id="ac-start" value="'+esc(f.start)+'"></label><label class="ac-lab">목표일 (선택)<input class="ac-in" type="date" id="ac-due" value="'+esc(f.due)+'"></label></div>'+
         '<label class="ac-lab">대상에서 뺄 객실 (선택)<input class="ac-in" id="ac-excl" placeholder="예: 2901, 3001 또는 29-31층" value="'+esc(f.excl)+'"><span style="font-weight:600;font-size:12px">비워 두면 417실 전체가 대상이에요</span></label>'+
         '<label class="ac-lab">메모 (선택, 정비보조에게 보여요)<input class="ac-in" id="ac-memo2" maxlength="100" placeholder="예: 이불장 안쪽까지 확인, 얼룩은 이상으로" value="'+esc(f.memo)+'"></label>'+
-        itemsForm(f)+'</div>';
+        itemsForm(f)+
+        '<label class="ac-lab">\'완료\' 이름 (선택)<input class="ac-in" id="ac-done" maxlength="10" placeholder="예: 정비 완료 · 제거 완료" value="'+esc(f.doneName || '')+'"><span style="font-weight:600;font-size:12px">비워 두면 \''+((f.items || []).length ? '이상 없음' : '완료')+'\'</span></label></div>';
       if (ac.err) h += '<p class="ac-err">'+esc(ac.err)+'</p>';
       h += '<button class="ac-big green" data-ac="save"'+(acBusy ? ' disabled' : '')+'>'+(acBusy ? '저장 중…' : f.id ? '저장' : '활동 만들기')+'</button>';
       return h;
@@ -1236,6 +1242,7 @@ setInterval(function(){ if (document.visibilityState === 'visible') refresh(); }
       var g = function(id){ var e = document.getElementById(id); return e ? e.value : null; };
       var a = g('ac-name'), b = g('ac-start'), c = g('ac-due'), d = g('ac-excl'), e = g('ac-memo2');
       if (a !== null) f.name = a; if (b !== null) f.start = b; if (c !== null) f.due = c; if (d !== null) f.excl = d; if (e !== null) f.memo = e;
+      var dn = g('ac-done'); if (dn !== null) f.doneName = dn;
       (f.items || []).forEach(function(i, x){ var n = g('ac-it-n-' + x), cc = g('ac-it-c-' + x); if (n !== null) i.n = n; if (cc !== null) i.c = cc; });
     }
     // ---------- 체크 저장 (누르는 즉시 화면 반영, 서버엔 하나씩)
@@ -1287,7 +1294,7 @@ setInterval(function(){ if (document.visibilityState === 'visible') refresh(); }
       if (k === 'tg' && ac.ask) { var tl = ac.ask.t = ac.ask.t || [], ti = tl.indexOf(v); if (ti >= 0) tl.splice(ti, 1); else tl.push(v); ac.ask.err = ''; try { buzz(15); } catch (e5) {} draw(); return; }
       if (k === 'issave' && ac.ask) {
         var mi = document.getElementById('ac-memo'), r2 = ac.ask.room, raw = String(mi ? mi.value : ac.ask.memo || '').trim();
-        if (its().length) { var tt = (ac.ask.t || []).slice(); if (!tt.length && !raw) { ac.ask.err = '해당하는 항목을 하나 이상 골라 주세요. 이상이 없으면 아래 \'이상 없음으로\'를 눌러 주세요.'; draw(); return; } ac.ask = null; mark(r2, '이상', raw, tt); return; }
+        if (its().length) { var tt = (ac.ask.t || []).slice(); if (!tt.length && !raw) { ac.ask.err = '해당하는 항목을 하나 이상 골라 주세요. 해당 없으면 아래 \''+doneOf(ac.cur)+'(으)로\'를 눌러 주세요.'; draw(); return; } ac.ask = null; mark(r2, '이상', raw, tt); return; }
         ac.ask = null; mark(r2, '이상', raw || '이상'); return;
       }
       if (k === 'todone' && ac.ask) { var r3 = ac.ask.room; ac.ask = null; mark(r3, '완료', ''); return; }
@@ -1295,8 +1302,8 @@ setInterval(function(){ if (document.visibilityState === 'visible') refresh(); }
       if (k === 'askx') { ac.ask = null; draw(); return; }
       if (!adminTok || acBusy) return;
       // 관리자
-      if (k === 'new') { var td = (ac.list && ac.list.today) || ''; ac.f = { id: '', name: '', color: '민트', start: td, due: '', excl: '', memo: '', items: [] }; ac.stage = 'form'; ac.err = ''; ac.jump = true; draw(); return; }
-      if (k === 'edit') { var a = ac.list.acts.filter(function(x){ return x.id === id; })[0]; if (!a) return; ac.f = { id: a.id, name: a.name, color: a.color, start: a.start, due: a.due, excl: a.exclText || '', memo: a.memo, items: (a.items || []).map(function(i){ return { k: i.k, n: i.n, c: i.c }; }) }; ac.stage = 'form'; ac.err = ''; ac.jump = true; draw(); return; }
+      if (k === 'new') { var td = (ac.list && ac.list.today) || ''; ac.f = { id: '', name: '', color: '민트', start: td, due: '', excl: '', memo: '', items: [], doneName: '' }; ac.stage = 'form'; ac.err = ''; ac.jump = true; draw(); return; }
+      if (k === 'edit') { var a = ac.list.acts.filter(function(x){ return x.id === id; })[0]; if (!a) return; ac.f = { id: a.id, name: a.name, color: a.color, start: a.start, due: a.due, excl: a.exclText || '', memo: a.memo, doneName: a.doneName || '', items: (a.items || []).map(function(i){ return { k: i.k, n: i.n, c: i.c }; }) }; ac.stage = 'form'; ac.err = ''; ac.jump = true; draw(); return; }
       if (k === 'color' && ac.f) { ac.f.color = v; draw(); return; }
       if (k === 'itadd' && ac.f) { var used = (ac.f.items || []).map(function(i){ return i.c; }), pick = Object.keys(ac.icolors || {}).filter(function(c){ return used.indexOf(c) < 0; })[0] || '빨강'; ac.f.items.push({ k: '', n: '', c: pick }); draw(); var ni = document.getElementById('ac-it-n-' + (ac.f.items.length - 1)); if (ni) ni.focus(); return; }
       if (k === 'itdel' && ac.f) { ac.f.items.splice(Number(v), 1); draw(); return; }

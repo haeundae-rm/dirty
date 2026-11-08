@@ -129,7 +129,8 @@ function paint(ctx, rec){
     if (!m) { box(x, y2, w, h, '#fff', '#AEB8C4', 0.22, 0.6); T(lab, x + w / 2, y2 + h / 2 + 0.9, 2.4, 700, '#3A4656', 'center'); return; }
     var tt = tg(m);
     if (tt.length) {
-      box(x, y2, w, h, '#fff', IH[tt[0]].hex, 0.5, 0.6); T(lab, x + w / 2, y2 + 1.95, 2.0, 900, INK, 'center');
+      var sw2 = w / tt.length; box(x, y2, w, h, '#fff', null, 0, 0.6); tt.forEach(function(k, j){ box(x + j * sw2, y2, sw2, h, IH[k].hex + '40', null, 0, 0); });   // 바탕 = 결과 색(연하게, 여러 개면 나눠 칠함)
+      box(x, y2, w, h, null, IH[tt[0]].hex, 0.5, 0.6); T(lab, x + w / 2, y2 + 1.95, 2.0, 900, INK, 'center');
       var cr = 0.95, gap = Math.min(2.1, (w - 1) / tt.length), sx0 = x + w / 2 - gap * (tt.length - 1) / 2;
       tt.forEach(function(k, j){ circ(sx0 + j * gap, y2 + h - 1.35, cr, IH[k].hex, k, 1.5); });
       return;
@@ -158,13 +159,13 @@ function paint(ctx, rec){
     ctx.fillStyle = RED; ctx.fillRect(p(gx + gw * st.done / st.target), p(56.6), p(gw * st.issue / st.target), p(4));
     ctx.restore();
   }
-  var tiles = [['대상', st.target, INK], [IT.length ? '이상 없음' : '완료', st.done, a.hex], [IT.length ? '항목 있음' : '이상', st.issue, st.issue ? RED : INK], ['미완료', st.left, st.left ? INK : '#1B5E20']];
+  var tiles = [['대상', st.target, INK], [a.doneName || (IT.length ? '이상 없음' : '완료'), st.done, a.hex], [IT.length ? '항목 있음' : '이상', st.issue, st.issue ? RED : INK], ['미완료', st.left, st.left ? INK : '#1B5E20']];
   var tw = (gw - 3 * 2) / 4;
   tiles.forEach(function(t, i){ var x = gx + i * (tw + 2); box(x, 63, tw, 11, '#fff', '#DCE2E9', 0.2, 1.2); T(t[0], x + tw / 2, 66.7, 2.5, 700, MUTED, 'center'); T(t[1], x + tw / 2, 72.3, 4.4, 900, t[2], 'center'); });
 
   // 범례
   var lx = RX, ly = 80.5;
-  (IT.length ? [['이상 없음', 'd'], ['미완료', 'n'], ['대상 제외', 'x']] : [['완료', 'd'], ['이상 있음', 'i'], ['미완료', 'n'], ['대상 제외', 'x']]).forEach(function(L){
+  (IT.length ? [[a.doneName || '이상 없음', 'd'], ['미완료', 'n'], ['대상 제외', 'x']] : [[a.doneName || '완료', 'd'], ['이상 있음', 'i'], ['미완료', 'n'], ['대상 제외', 'x']]).forEach(function(L){
     var sx = lx, sy = ly - 2.6;
     if (L[1] === 'd') box(sx, sy, 5, 3.4, a.hex, null, 0, 0.6);
     else if (L[1] === 'i') { box(sx, sy, 5, 3.4, RED_SOFT, RED, 0.45, 0.6); T('!', sx + 4, sy + 2.2, 2, 900, RED, 'center'); }

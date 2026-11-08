@@ -144,6 +144,7 @@ const openSec = async (p, sec, sel) => until(async () => { await p.evaluate(s =>
   await pM.click('[data-ac="itadd"]'); await pM.fill('#ac-it-n-2', '다리 흔들림');
   await pM.click('[data-ac="itadd"]'); await pM.fill('#ac-it-n-3', '지울 항목');
   await pM.selectOption('#ac-it-c-2', '주황');
+  await pM.fill('#ac-done', '정비 완료');
   ok(await pM.locator('#ac-it-c-0').inputValue() === '빨강' && await pM.locator('#ac-it-c-1').inputValue() === '파랑', '항목 색 자동: 빨강 · 파랑');
   await pM.click('[data-ac="itdel"][data-v="3"]');
   ok(await pM.locator('#ac-it-n-3').count() === 0 && await pM.locator('#ac-it-n-2').inputValue() === '다리 흔들림', '항목 지우기 (입력한 글자 유지)');
@@ -158,7 +159,8 @@ const openSec = async (p, sec, sel) => until(async () => { await p.evaluate(s =>
   await pA.click('[data-ac="open"]');
   ok(await until(async () => (await pA.locator('[data-ac="act"]').count()) === 2), '진행 중 2개 → 목록');
   await pA.click('[data-ac="act"][data-id="' + NID + '"]');
-  ok(await until(async () => /이상 없음/.test(await txt(pA, '.ac-seg')) && /항목 체크/.test(await txt(pA, '.ac-seg'))), "버튼 이름 '이상 없음 / 항목 체크'");
+  ok(await until(async () => /정비 완료/.test(await txt(pA, '.ac-seg')) && /항목 체크/.test(await txt(pA, '.ac-seg'))), "버튼 이름 = 관리자가 정한 '정비 완료' / 항목 체크");
+  ok(db.docs.get('acts/' + NID).doneName === '정비 완료', "문서 doneName = '정비 완료'");
   await pA.click('.ac-row[data-v="21"]');
   await until(async () => /21층/.test(await txt(pA, '.ac-fh')));
   await pA.click('.ac-t[data-r="2101"]');
@@ -172,6 +174,7 @@ const openSec = async (p, sec, sel) => until(async () => { await p.evaluate(s =>
   ok(/2개 저장/.test(await txt(pA, '[data-ac="issave"]')), "두 개 고르면 '2개 저장'");
   await pA.click('[data-ac="issave"]');
   ok(await pA.locator('.ac-t.k[data-r="2103"] .ac-dots b').count() === 2, '2103 칸에 번호 동그라미 2개 (바로)');
+  ok(/gradient/.test(await pA.locator('.ac-t[data-r="2103"]').getAttribute('style')), '2103 칸 바탕 = 두 결과 색으로 나눠 칠함');
   ok(await until(() => { const m = mark(db, NID, '2103'); return m && m.s === '이상' && JSON.stringify(m.t) === '["1","2"]' && m.m === ''; }), 'Firestore 2103 = 이상 · t [1,2]');
   await pA.click('.ac-t[data-r="2104"]');
   await pA.click('[data-ac="tg"][data-v="3"]'); await pA.click('[data-ac="tg"][data-v="1"]'); await pA.click('[data-ac="tg"][data-v="2"]');
@@ -182,6 +185,7 @@ const openSec = async (p, sec, sel) => until(async () => { await p.evaluate(s =>
   ok(await pA.locator('[data-ac="tg"][aria-pressed="true"]').count() === 3, '다시 열면 고른 항목 그대로');
   await pA.click('[data-ac="tg"][data-v="2"]'); await pA.click('[data-ac="issave"]');
   ok(await until(() => JSON.stringify(mark(db, NID, '2104').t) === '["1","3"]'), '항목 하나 빼기 → [1,3]');
+  ok(/정비 완료/.test(await txt(pA, '.ac-t[data-r="2101"]')), "이상 없는 칸 글자 = '정비 완료'");
   ok(await until(async () => /상판 노후\s*2/.test(await txt(pA, '.ac-legend')) && /다리 물듬\s*1/.test(await txt(pA, '.ac-legend')) && /다리 흔들림\s*1/.test(await txt(pA, '.ac-legend'))), '범례 숫자: 상판 2 · 물듬 1 · 흔들림 1');
   ok(/2103 · 2104/.test(await txt(pA, '.ac-grp')), '항목별 객실 목록 (상판: 2103 · 2104)');
   ok(await pA.locator('.ac-row[data-v="21"] .c[style*="gradient"]').count() === 2, '전체 도면 작은 칸도 항목 색');

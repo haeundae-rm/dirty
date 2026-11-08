@@ -54,7 +54,7 @@
       return env.acts().filter(function (d) { return String(d.id).indexOf('CHECK-') !== 0; }).map(function (d) {   // 규칙 점검용 시험 활동은 안 보임
         var st = ['진행', '끝남', '보관'].indexOf(d.status) >= 0 ? d.status : '진행';
         return { id: d.id, made: iso(d.made), status: st, name: String(d.name || ''), color: String(d.color || ''), start: day(d.start), due: day(d.due),
-                 excl: excl(d.exclText), exclText: String(d.exclText || ''), memo: String(d.memo || ''), ended: st === '끝남' ? iso(d.ended) : '', items: items(d.items) };
+                 excl: excl(d.exclText), exclText: String(d.exclText || ''), memo: String(d.memo || ''), ended: st === '끝남' ? iso(d.ended) : '', items: items(d.items), doneName: String(d.doneName || '').replace(/\s+/g, ' ').trim().slice(0, 10) };
       }).filter(function (a) { return a.name; }).sort(function (a, b) { return (a.made < b.made ? -1 : a.made > b.made ? 1 : 0) || (a.id < b.id ? -1 : 1); });
     }
     function marksOf(id, its) {
@@ -87,7 +87,7 @@
                floors: floors, workers: workers, workersToday: workersToday, days: days, items: byItem };
     }
     function pub(a, marks, admin) {
-      var out = { id: a.id, name: a.name, color: a.color, hex: COLORS[a.color] || '#1FB59A', start: a.start, due: a.due, excl: a.excl, exclText: a.exclText, memo: a.memo, status: a.status, ended: a.ended || '', items: a.items || [], stats: stats(a, marks || {}) };
+      var out = { id: a.id, name: a.name, color: a.color, hex: COLORS[a.color] || '#1FB59A', start: a.start, due: a.due, excl: a.excl, exclText: a.exclText, memo: a.memo, status: a.status, ended: a.ended || '', items: a.items || [], doneName: a.doneName || '', stats: stats(a, marks || {}) };
       if (admin) out.printUrl = env.printUrl(a.id);
       return out;
     }
@@ -95,7 +95,7 @@
     function needAdmin(token) { if (!env.isAdmin(token)) throw new Error('관리자 비밀번호가 필요해요. 관리자 모드로 다시 들어와 주세요.'); }
     function docOf(a, patch) {   // 활동 문서 전체 (수정할 때도 통째로 다시 씀)
       var d = { name: a.name, color: a.color, start: a.start, due: a.due || '', exclText: a.exclText || '', memo: a.memo || '', status: a.status, made: a.made ? new Date(a.made) : new Date(), ended: a.ended ? new Date(a.ended) : null,
-                items: (a.items || []).map(function (i) { return { k: i.k, n: i.n, c: i.c }; }) };
+                items: (a.items || []).map(function (i) { return { k: i.k, n: i.n, c: i.c }; }), doneName: a.doneName || '' };
       Object.keys(patch || {}).forEach(function (k) { d[k] = patch[k]; });
       return d;
     }
@@ -144,6 +144,7 @@
       var bad = badExcl(exclText);
       if (bad.length) throw new Error('제외 객실을 확인해 주세요: ' + bad.slice(0, 5).join(', ') + ' (예: 2901, 3001 또는 29-31층)');
       var memo = String(x.memo || '').replace(/\s+/g, ' ').trim().slice(0, 100);
+      var doneName = String(x.doneName || '').replace(/\s+/g, ' ').trim().slice(0, 10);   // '완료' 이름 (예: 정비 완료, 제거 완료) — 비우면 기본
       var its = [], used = {}, names = {};
       (Array.isArray(x.items) ? x.items : []).forEach(function (i) {
         i = i || {}; var n = String(i.n || '').replace(/\s+/g, ' ').trim(); if (!n) return;
@@ -160,13 +161,13 @@
       if (id) {
         a = list.filter(function (q) { return q.id === id; })[0];
         if (!a) throw new Error('활동을 찾지 못했어요.');
-        env.saveAct(id, docOf(a, { name: name, color: color, start: start, due: due, exclText: exclText, memo: memo, items: its }));
+        env.saveAct(id, docOf(a, { name: name, color: color, start: start, due: due, exclText: exclText, memo: memo, items: its, doneName: doneName }));
       } else {
         if (list.some(function (q) { return q.status === '진행' && q.name === name; })) throw new Error("'" + name + "' 활동이 이미 진행 중이에요.");
         var base = 'A' + today().slice(2).replace(/-/g, ''), k = 1;
         while (raw.some(function (q) { return q.id === base + '-' + k; })) k++;
         id = base + '-' + k;
-        env.saveAct(id, { name: name, color: color, start: start, due: due, exclText: exclText, memo: memo, items: its, status: '진행', made: new Date(), ended: null });
+        env.saveAct(id, { name: name, color: color, start: start, due: due, exclText: exclText, memo: memo, items: its, doneName: doneName, status: '진행', made: new Date(), ended: null });
       }
       var out = actList(token); out.saved = id; return out;
     }
