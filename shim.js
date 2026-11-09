@@ -8,7 +8,7 @@
 // 관리자 확인은 Firebase 로그인(소장·부소장 계정) + 보안 규칙. 화면의 adminTok 은 '관리자 모드' 표시용 값일 뿐
 (function () {
   'use strict';
-  var APP_VER = '2026.11.08-9';
+  var APP_VER = '2026.11.09-1';
   var TZ = 'Asia/Seoul';
   var API_URL = 'https://script.google.com/macros/s/AKfycbyPvhvScAcDfGqyxdK9pvr8vtewfjAkHsbRBiN04GCNbzE4HL_zZHODWPPb4xUHQb0LCw/exec';
   var ADMINS = { '소장': 'unieshaeundae+admin@gmail.com', '부소장': 'unieshaeundae+sub@gmail.com' };
@@ -104,7 +104,7 @@
       if (!A.got && !docs.length && meta && meta.fromCache) { cacheWait('acts', function () { A.got = true; actChanged(); }); return; }   // 휴대폰 보관함이 비어 있을 때 첫 '빈 결과'는 기다림
       var m = {}; docs.forEach(function (d) { if (!A.gone[d.id]) m[d.id] = d.data; });   // 방금 지운 활동은 서버 삭제가 끝나기 전에도 다시 안 보이게
       A.docs = m; A.got = true;
-      Object.keys(m).forEach(function (id) { if (m[id] && (m[id].status !== '보관' || S.admin)) marksSub(id); });   // 관리자는 보관함 활동 체크도 받음 (보관함 보기·삭제 가능 여부)
+      Object.keys(m).forEach(function (id) { if (needMarks(m[id])) marksSub(id); });   // 11/9 읽기 줄이기: 정비보조 = 진행 중 활동만, 관리자 = 진행·끝남 (보관함 체크는 보관함을 열 때만)
       actChanged();
     }, function (e) { A.got = true; report('listen', '활동판 ' + (e && (e.code || e.message))); actChanged(); });
   }
@@ -118,7 +118,8 @@
   }
   var cacheTimers = {};
   function cacheWait(k, f) { if (!cacheTimers[k]) cacheTimers[k] = setTimeout(f, 8000); }   // 인터넷이 없으면 8초 뒤 보관된 것으로 진행
-  function actReady() { return A.got && Object.keys(A.docs).every(function (id) { return !A.docs[id] || A.docs[id].status === '보관' || A.mgot[id]; }); }
+  function needMarks(d) { return !!d && (d.status === '진행' || (S.admin && d.status === '끝남')); }
+  function actReady() { return A.got && Object.keys(A.docs).every(function (id) { return !needMarks(A.docs[id]) || A.mgot[id]; }); }
   function actChanged() { if (A.waiting.length && actReady()) { var w = A.waiting; A.waiting = []; w.forEach(function (f) { f(); }); } }
   function actRejected(what, e) {
     var code = String(e && (e.code || e.message) || e);
