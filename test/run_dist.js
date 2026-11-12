@@ -211,6 +211,19 @@ const chip = (p, n) => p.locator('.dz [data-dz="who"][data-v="' + n + '"]');
   ok(await until(async () => /출근 메이드 21명/.test(await txt(pM, '.dz')), 8000), '파일을 고른 뒤 날짜 바꾸면 그 파일의 해당 날짜 시트');
   await pM.click('.dz [data-dz="close"]');
   ok((await db.handle(null, 'get', { uid: 'worker-x', path: 'uploads/rep_' + TOM })).error === 'permission-denied', '근무자는 uploads 못 읽음');
+  console.log('⑧-4 배분안 자동 준비 (오늘: 레포트 앱 올림 + 출근 체크 → 바로 확정 가능)');
+  const repT = dataOf(cardsT, roomsT);
+  db.docs.set('uploads/rep_' + DAY, { date: DAY, csv: '', kind: 'report', sheet: String(+DAY.slice(8)), file: '오늘_정비보고서.xlsx', at: { __ts: Date.now() - 3 * 3600000 }, who: '부소장', cards: repT.cards, rooms: repT.rooms });
+  await pM.click('[data-dist]');
+  ok(await until(async () => /배분안이 준비됐어요/.test(await txt(pM, '.dz')), 8000), '창을 열자마자 배분안 준비됨 안내');
+  ok(/올린 내용이에요/.test(await txt(pM, '.dz-warn')) || /엑셀을 고쳤다면/.test(await txt(pM, '.dz')), '올린 시각 + 그 뒤 고쳤다면 안내 띠');
+  ok(await pM.locator('.dz-go[disabled]').count() === 0 && (await pM.locator('.dz-b:not(.dz-pool)').count()) >= 1, '파일 없이 확정 버튼 켜짐 · 미리보기 블록 있음');
+  await pM.click('.dz [data-dz="save"]');
+  ok(await until(async () => /더티 배분을 올렸어요/.test(await txt(pM, '.dz'))), '파일 없이 확정');
+  ok(db.docs.get('sup/' + DAY).meta.file === '오늘_정비보고서.xlsx', '확정 기록에 불러온 파일 이름');
+  await pM.click('.dz [data-dz="close"]');
+  ok(/자동 불러오기/.test(await txt(pM, '[data-dist]')), '관리자 버튼 설명 바뀜');
+
 
   console.log('⑨ 위조 막기');
   const forged = await pW.evaluate(async (d) => { try { await SupShim._S.store.set('sup/' + d, { date: d, plan: [] }); return 'ok'; } catch (e) { return 'rejected'; } }, DAY);

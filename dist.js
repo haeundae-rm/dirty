@@ -25,7 +25,7 @@
       var has = !window.plan.noPlan;
       var b = document.createElement('div');
       b.className = 'dz-open';
-      b.innerHTML = '<button data-dist="1"><b>📋 더티 배분 ' + (has ? '다시 만들기' : '만들기') + '</b><small>정비보고서 엑셀 → 정비보조 고르기 → 확정</small></button>';
+      b.innerHTML = '<button data-dist="1"><b>📋 더티 배분 ' + (has ? '다시 만들기' : '만들기') + '</b><small>레포트 앱 정비보고서 자동 불러오기 → 정비보조 확인 → 확정</small></button>';
       am.insertAdjacentElement('afterend', b);
     } catch (e) {}
   }
@@ -141,13 +141,15 @@
     var t = A.today(), tm = A.shift(t, 1);
     var h = '<div class="dz-in"><div class="dz-head"><h2>더티 배분 만들기</h2><button class="dz-x" data-dz="close" aria-label="닫기">✕</button></div>';
     if (K.done) { box.innerHTML = h + doneHtml() + '</div>'; return; }
+    if (K.src && K.res && K.res.blocks && K.res.blocks.length) h += '<p class="dz-ready">✅ 배분안이 준비됐어요 — 레포트 앱 정비보고서 + ' + (K.date === t ? '출근 체크' : '지난 확정 명단') + '로 채웠어요. 아래 정비보조·미리보기를 확인하고 <b>확정</b>만 누르세요.</p>';
     // 1 날짜
     h += '<section class="dz-sec"><h3><i>1</i>날짜</h3><div class="dz-seg">' +
       [[t, '오늘'], [tm, '내일']].map(function (x) { return '<button data-dz="date" data-v="' + x[0] + '" aria-pressed="' + (K.date === x[0]) + '">' + x[1] + ' ' + md(x[0]) + '</button>'; }).join('') + '</div>' +
       (A.planDoc(K.date) ? '<p class="dz-warn">이 날짜에 이미 배정이 있어요. 확정하면 새 배정으로 바뀌어요 (이미 체크한 객실 실적은 그대로).</p>' : '') + '</section>';
     // 2 파일
     h += '<section class="dz-sec"><h3><i>2</i>정비보고서</h3>' +
-      (K.src && K.data ? '<p class="dz-ok">📱 레포트 앱에서 올린 정비보고서를 불러왔어요<br><small>' + esc(K.file) + (hhmm(K.src.at) ? ' · ' + hhmm(K.src.at) + ' 올림' : '') + (K.src.who ? ' · ' + esc(K.src.who) : '') + '</small></p>' : '') +
+      (K.src && K.data ? '<p class="dz-ok">📱 레포트 앱에서 올린 정비보고서를 불러왔어요<br><small>' + esc(K.file) + (hhmm(K.src.at) ? ' · ' + hhmm(K.src.at) + ' 올림' : '') + (K.src.who ? ' · ' + esc(K.src.who) : '') + '</small></p>' +
+        '<p class="dz-warn">⚠ ' + (hhmm(K.src.at) ? hhmm(K.src.at) + '에 올린 내용이에요. ' : '') + '그 뒤 엑셀을 고쳤다면 — 배정이 바뀐 경우 레포트 앱에서 다시 올리고, 더티만 다시 할 거면 아래에서 엑셀 파일을 고르세요.</p>' : '') +
       (K.repBusy ? '<p class="dz-tip">레포트 앱에서 올린 정비보고서를 찾는 중…</p>' : '') +
       (K.repNone && !K.data && !K.busy ? '<p class="dz-tip">' + md(K.date) + ' 정비보고서는 레포트 앱에 아직 안 올라왔어요. 레포트 앱에서 먼저 올리거나 엑셀 파일을 골라 주세요.</p>' : '') +
       '<label class="dz-file' + (K.src && K.data ? ' dz-sub' : '') + '"><input type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" data-dz="file">' +
@@ -338,6 +340,7 @@
     '.dz-seg button[aria-pressed="true"]{background:var(--brand,#9A4708);border-color:var(--brand,#9A4708);color:#fff}',
     '.dz-file{display:flex;align-items:center;justify-content:center;gap:8px;min-height:56px;border:2px dashed var(--line);border-radius:14px;font-weight:700;color:var(--ink);cursor:pointer;text-align:center;padding:8px}',
     '.dz-file small{color:var(--muted);font-weight:500}.dz-file input{position:absolute;width:1px;height:1px;opacity:0}',
+    '.dz-ready{margin:0 0 12px;padding:10px 12px;border-radius:12px;background:#E5F4EA;color:#1F5130;font-size:13.5px;line-height:1.45}',
     '.dz-file.dz-sub{min-height:40px;border-width:1px;font-size:.88em;color:var(--muted);margin-top:8px}.dz-ok small{color:var(--muted);font-weight:500}',
     '.dz-ok{margin:8px 0 0;color:var(--done,#1E8E3E);font-weight:700;font-size:14px}.dz-err{margin:8px 0 0;color:var(--warn,#B23A48);font-weight:700;font-size:14px}',
     '.dz-warn{margin:8px 0 0;color:#8A5A00;background:#FDF3DC;border-radius:10px;padding:8px 10px;font-size:13.5px}',
