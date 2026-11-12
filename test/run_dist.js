@@ -192,6 +192,26 @@ const chip = (p, n) => p.locator('.dz [data-dz="who"][data-v="' + n + '"]');
   await until(async () => (await pS.locator('[data-pick="사롤"]').count()) === 1);
   await pS.click('[data-pick="사롤"]');
   ok(await until(async () => /오늘은 기타 업무예요/.test(await txt(pS, '#main')) && /📝 단체 침구/.test(await txt(pS, '#main')), 6000), '사롤 화면: 오늘은 기타 업무 + 📝 단체 침구');
+  console.log('⑧-3 레포트 앱에서 올린 정비보고서 불러오기 (파일 없이)');
+  await pM.click('[data-dist]');
+  ok(await until(async () => /레포트 앱에 아직 안 올라왔어요/.test(await txt(pM, '.dz'))), '오늘 올린 것이 없으면 안내 + 파일 고르기 그대로');
+  const rep = dataOf(cardsM, roomsM);
+  db.docs.set('uploads/rep_' + TOM, { date: TOM, csv: '', kind: 'report', sheet: String(+TOM.slice(8)), file: '정비보고서_test.xlsx', at: { __ts: Date.now() }, who: '소장',
+    cards: rep.cards.map(c => Object.assign({ label: '1] ' + c.name, actual: '' }, c)).concat([{ label: '99] 휴무자', name: '휴무자', unit: '휴무', actual: '' }]), rooms: rep.rooms.concat([{ room: '3101', st: 'VC' }]) });
+  await pM.click('.dz [data-dz="date"][data-v="' + TOM + '"]');
+  ok(await until(async () => /레포트 앱에서 올린 정비보고서를 불러왔어요/.test(await txt(pM, '.dz')) && /출근 메이드 10명/.test(await txt(pM, '.dz')), 6000), '내일: 파일 없이 레포트 앱 올림 불러옴 · 출근 메이드 10명');
+  ok(/정비보고서_test\.xlsx/.test(await txt(pM, '.dz')) && /소장/.test(await txt(pM, '.dz')), '불러온 파일 이름·올린 사람 표시');
+  const expR = Calc.compute(dataOf(cardsM, roomsM), { date: TOM, workers: ['사롤'], etc: [], rule: { '4': 0, '5': 0, '6': 0, '7': 0, '8': 0, '9': 0, '10': 4, '11': 6, '12': 8, '13': 10, top: 14, topVal: 11 }, over: {}, move: {} });
+  ok(await until(() => pM.evaluate(() => { const K = SupDist._K(); return !!(K.res && K.res.plan && K.res.plan.length); })), '미리보기 계산됨');
+  const uiR = await pM.evaluate(() => SupDist._K().res.plan.map(x => x.m + ':' + x.w + ':' + x.d).sort().join('|'));
+  ok(uiR === expR.plan.map(x => x.m + ':' + x.w + ':' + x.d).sort().join('|'), '불러온 데이터 계산 = 파일 계산과 같음');
+  await pM.setInputFiles('.dz input[type=file]', XLSX);
+  ok(await until(async () => !/레포트 앱에서 올린/.test(await txt(pM, '.dz')) && /report_test\.xlsx/.test(await txt(pM, '.dz')), 8000), '엑셀 파일을 고르면 파일이 우선');
+  await pM.click('.dz [data-dz="date"][data-v="' + DAY + '"]');
+  ok(await until(async () => /출근 메이드 21명/.test(await txt(pM, '.dz')), 8000), '파일을 고른 뒤 날짜 바꾸면 그 파일의 해당 날짜 시트');
+  await pM.click('.dz [data-dz="close"]');
+  ok((await db.handle(null, 'get', { uid: 'worker-x', path: 'uploads/rep_' + TOM })).error === 'permission-denied', '근무자는 uploads 못 읽음');
+
   console.log('⑨ 위조 막기');
   const forged = await pW.evaluate(async (d) => { try { await SupShim._S.store.set('sup/' + d, { date: d, plan: [] }); return 'ok'; } catch (e) { return 'rejected'; } }, DAY);
   ok(forged === 'rejected', '근무자가 배정 문서를 쓰면 규칙이 거절');

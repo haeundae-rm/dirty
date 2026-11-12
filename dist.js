@@ -61,9 +61,28 @@
     box.className = 'dz'; box.id = 'dz';
     document.body.appendChild(box);
     document.body.classList.add('dz-lock');
-    prefill(); draw();
+    prefill(); draw(); loadRep(day);
     loadRule().then(function (r) { if (K) { K.rule = r; draw(); } });
     A.fetchPlan(A.shift(day, 1)).then(function () { if (K) draw(); }, function () {});
+  }
+  // 2026-11-12: 레포트 앱에서 올린 그날 정비보고서(카드·객실)를 불러옴 — 파일을 직접 고르면 그쪽이 우선
+  function loadRep(d) {
+    var A = api(); if (!K || !A.fetchReport || K.lastFile) return;
+    K.repBusy = true; K.repNone = false; K.src = null; draw();
+    A.fetchReport(d).then(function (x) {
+      if (!K || K.date !== d || K.lastFile) return;
+      K.repBusy = false;
+      if (x && Array.isArray(x.cards) && Array.isArray(x.rooms) && x.rooms.length) {
+        K.data = { rooms: x.rooms, cards: x.cards, groups: [], themes: [] }; K.sheet = x.sheet || ''; K.file = x.file || '';
+        K.src = { at: x.at, who: x.who || '' }; K.err = '';
+      } else K.repNone = true;
+      draw();
+    }, function () { if (!K || K.date !== d) return; K.repBusy = false; K.repNone = true; draw(); });
+  }
+  function hhmm(t) {
+    var n = t && typeof t === 'object' ? (t.toMillis ? t.toMillis() : t.seconds * 1000) : Number(t);
+    if (!n) return '';
+    var x = new Date(n + 9 * 3600000); return ('0' + x.getUTCHours()).slice(-2) + ':' + ('0' + x.getUTCMinutes()).slice(-2);
   }
   function close() { var b = document.getElementById('dz'); if (b) b.remove(); document.body.classList.remove('dz-lock'); K = null; }
 
@@ -127,8 +146,12 @@
       [[t, '오늘'], [tm, '내일']].map(function (x) { return '<button data-dz="date" data-v="' + x[0] + '" aria-pressed="' + (K.date === x[0]) + '">' + x[1] + ' ' + md(x[0]) + '</button>'; }).join('') + '</div>' +
       (A.planDoc(K.date) ? '<p class="dz-warn">이 날짜에 이미 배정이 있어요. 확정하면 새 배정으로 바뀌어요 (이미 체크한 객실 실적은 그대로).</p>' : '') + '</section>';
     // 2 파일
-    h += '<section class="dz-sec"><h3><i>2</i>정비보고서 엑셀</h3><label class="dz-file"><input type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" data-dz="file">' +
-      (K.busy ? '읽는 중…' : K.data ? '📄 ' + esc(K.file) + ' <small>다른 파일 고르기</small>' : '📂 파일 고르기') + '</label>' +
+    h += '<section class="dz-sec"><h3><i>2</i>정비보고서</h3>' +
+      (K.src && K.data ? '<p class="dz-ok">📱 레포트 앱에서 올린 정비보고서를 불러왔어요<br><small>' + esc(K.file) + (hhmm(K.src.at) ? ' · ' + hhmm(K.src.at) + ' 올림' : '') + (K.src.who ? ' · ' + esc(K.src.who) : '') + '</small></p>' : '') +
+      (K.repBusy ? '<p class="dz-tip">레포트 앱에서 올린 정비보고서를 찾는 중…</p>' : '') +
+      (K.repNone && !K.data && !K.busy ? '<p class="dz-tip">' + md(K.date) + ' 정비보고서는 레포트 앱에 아직 안 올라왔어요. 레포트 앱에서 먼저 올리거나 엑셀 파일을 골라 주세요.</p>' : '') +
+      '<label class="dz-file' + (K.src && K.data ? ' dz-sub' : '') + '"><input type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" data-dz="file">' +
+      (K.busy ? '읽는 중…' : K.src && K.data ? '📂 엑셀 파일로 바꾸기' : K.data ? '📄 ' + esc(K.file) + ' <small>다른 파일 고르기</small>' : '📂 엑셀 파일 고르기') + '</label>' +
       (K.err ? '<p class="dz-err">' + esc(K.err) + '</p>' : '') +
       (K.data ? '<p class="dz-ok">' + esc(K.sheet) + '일 시트 · 출근 메이드 ' + SupDistCalc.cardList(K.data.cards).length + '명 · 배정 객실 ' + (K.res ? K.res.roomsTotal : '-') + '실</p>' : '') + '</section>';
     // 3 정비보조
@@ -206,7 +229,7 @@
       return import('./engine.js?v=' + VER).then(function (E) { return E.buildFromXlsx(new Uint8Array(buf), K.date); });
     }).then(function (r) {
       if (!K) return;
-      K.busy = false; K.data = r.data; K.sheet = r.sheet; K.bytes = null; K.lastFile = f; draw();
+      K.busy = false; K.data = r.data; K.sheet = r.sheet; K.bytes = null; K.lastFile = f; K.src = null; K.repNone = false; draw();
     }, function (e) {
       if (!K) return;
       K.busy = false; K.data = null;
@@ -244,7 +267,7 @@
     if (a === 'date') {
       if (K.date === v) return;
       K.date = v; prefill();
-      if (K.lastFile) { K.data = null; readFile(K.lastFile); } else draw();
+      if (K.lastFile) { K.data = null; readFile(K.lastFile); } else { K.data = null; K.sheet = ''; K.file = ''; loadRep(v); }
       return;
     }
     if (a === 'who') {
@@ -315,6 +338,7 @@
     '.dz-seg button[aria-pressed="true"]{background:var(--brand,#9A4708);border-color:var(--brand,#9A4708);color:#fff}',
     '.dz-file{display:flex;align-items:center;justify-content:center;gap:8px;min-height:56px;border:2px dashed var(--line);border-radius:14px;font-weight:700;color:var(--ink);cursor:pointer;text-align:center;padding:8px}',
     '.dz-file small{color:var(--muted);font-weight:500}.dz-file input{position:absolute;width:1px;height:1px;opacity:0}',
+    '.dz-file.dz-sub{min-height:40px;border-width:1px;font-size:.88em;color:var(--muted);margin-top:8px}.dz-ok small{color:var(--muted);font-weight:500}',
     '.dz-ok{margin:8px 0 0;color:var(--done,#1E8E3E);font-weight:700;font-size:14px}.dz-err{margin:8px 0 0;color:var(--warn,#B23A48);font-weight:700;font-size:14px}',
     '.dz-warn{margin:8px 0 0;color:#8A5A00;background:#FDF3DC;border-radius:10px;padding:8px 10px;font-size:13.5px}',
     '.dz-tot{margin:0 0 10px;font-size:14.5px}.dz-tip{margin:8px 0 0;color:var(--muted);font-size:13px}',

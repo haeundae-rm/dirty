@@ -8,7 +8,7 @@
 // 관리자 확인은 Firebase 로그인(소장·부소장 계정) + 보안 규칙. 화면의 adminTok 은 '관리자 모드' 표시용 값일 뿐
 (function () {
   'use strict';
-  var APP_VER = '2026.11.12-1';
+  var APP_VER = '2026.11.12-2';
   var TZ = 'Asia/Seoul';
   var API_URL = 'https://script.google.com/macros/s/AKfycbyPvhvScAcDfGqyxdK9pvr8vtewfjAkHsbRBiN04GCNbzE4HL_zZHODWPPb4xUHQb0LCw/exec';
   var ADMINS = { '소장': 'unieshaeundae+admin@gmail.com', '부소장': 'unieshaeundae+sub@gmail.com' };
@@ -454,6 +454,8 @@
         return x && Array.isArray(x.plan) && x.plan.length ? x : null;
       },
       fetchPlan: function (d) { if (d === S.day) return Promise.resolve(S.plan); return S.store.get('sup/' + d).then(function (x) { other[d] = x; return x; }); },
+      // 2026-11-12: 레포트 앱 '정비보고서 올리기'가 남긴 그날 카드·객실 (uploads/rep_{날짜}, 관리자만) — 열 때 한 번만 읽음
+      fetchReport: function (d) { return S.store.get('uploads/rep_' + d); },
       knownNames: function () { return rosterNames(); },
       getCfg: function () { return S.store.get('sup_meta/distcfg'); },
       setCfg: function (c) { return S.store.set('sup_meta/distcfg', { rule: c.rule, at: S.store.SERVER_TIME, uid: S.user ? S.user.uid : '' }); },
