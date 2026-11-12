@@ -5,6 +5,8 @@
 (function () {
   'use strict';
   var VER = (window.SupShim && SupShim.ver) || '';
+  // 이 파일이 있는 폴더 (11/13: 관리자 허브 /rm/admin/ 에서도 이 파일을 불러 씀 → engine.js 는 늘 이 파일 옆 것)
+  var BASE = document.currentScript && document.currentScript.src ? document.currentScript.src.replace(/[?#].*$/, '').replace(/[^/]*$/, '') : './';
   var DEF_RULE = { '4': 0, '5': 0, '6': 0, '7': 0, '8': 0, '9': 0, '10': 4, '11': 6, '12': 8, '13': 10, '14': 11, '15': 11, '16': 11, '17': 11, '18': 11, '19': 11 };
   var K = null;   // 열려 있는 동안의 상태
 
@@ -228,7 +230,7 @@
     K.busy = true; K.err = ''; K.file = f.name; draw();
     var A = api();
     f.arrayBuffer().then(function (buf) {
-      return import('./engine.js?v=' + VER).then(function (E) { return E.buildFromXlsx(new Uint8Array(buf), K.date); });
+      return import(BASE + 'engine.js?v=' + VER).then(function (E) { return E.buildFromXlsx(new Uint8Array(buf), K.date); });
     }).then(function (r) {
       if (!K) return;
       K.busy = false; K.data = r.data; K.sheet = r.sheet; K.bytes = null; K.lastFile = f; K.src = null; K.repNone = false; draw();
