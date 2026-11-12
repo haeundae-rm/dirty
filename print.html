@@ -37,10 +37,13 @@ body{background:#5B6573;color:#16202C;font:15px/1.45 "Noto Sans KR","Apple SD Go
 <div class="wrap" id="wrap"><div class="msg" id="msg">활동 기록을 받는 중…</div></div>
 <p class="tip" id="tip" hidden></p>
 <div id="print"></div>
-<script src="act.js?v=2026.11.09-1"></script>
+<script>if (/[?&]r=169\b/.test(location.search)) document.write('<style>@page{size:373.33mm 210mm;margin:0}@media print{html,body{width:373.33mm}#print img{width:373.33mm}}</style>');</script>
+<script src="act.js?v=2026.11.12-1"></script>
 <script>
 var P = null, D = null;
-var W = 3508, H = 2480, S = W / 297;   // A4 가로 300dpi, 1mm = 11.81px
+var WIDE = /[?&]r=169\b/.test(location.search);   // 슬라이드용 16:9 (11/12): 높이는 A4 그대로(210mm), 너비만 373.3mm 로 넓혀 도면 칸을 가로로 넉넉히 — 글자·칸 높이는 A4 와 같음
+var PWm = WIDE ? 210 * 16 / 9 : 297, RE = PWm - 10;   // 쪽 너비(mm) · 오른쪽 끝
+var S = 3508 / 297, W = Math.round(PWm * S), H = 2480;   // 300dpi, 1mm = 11.81px
 var FF = '"Noto Sans KR","Apple SD Gothic Neo","Malgun Gothic",sans-serif';
 var NAVY = '#10233F', INK = '#16202C', MUTED = '#5E6B7A', LINE = '#C9D1DB', RED = '#C62828', RED_SOFT = '#FDECEC', SOFT = '#F3F5F8';
 var LINES = 17;
@@ -96,13 +99,13 @@ function paint(ctx, rec){
   if (!rec) { ctx.beginPath(); ctx.arc(p(12.6), p(22.6), p(2.3), 0, Math.PI * 2); ctx.fillStyle = a.hex; ctx.fill(); }
   T(a.name, 17, 25.3, 7.4, 900, NAVY, 'left', 165);
   var period = dot(a.start) + ' ~ ' + (a.due ? dot(a.due) + ' (목표)' : '');
-  T('기간  ' + period, 287, 15.2, 3.2, 700, INK, 'right');
-  T('기준  ' + a.asOf, 287, 20.6, 3.2, 400, MUTED, 'right');
+  T('기간  ' + period, RE, 15.2, 3.2, 700, INK, 'right');
+  T('기준  ' + a.asOf, RE, 20.6, 3.2, 400, MUTED, 'right');
   var stLab = a.status === '진행' ? '진행 중' : a.status === '끝남' ? '완료 처리 ' + dot(a.endedDay) : a.status;
   var sw = TW(stLab, 3.0, 900) + 5;
-  box(287 - sw, 23.2, sw, 4.8, a.status === '진행' ? '#2E7D4F' : NAVY, null, 0, 2.4);
-  T(stLab, 287 - sw / 2, 26.6, 3.0, 900, '#fff', 'center');
-  box(10, 30.2, 277, 0.7, NAVY);
+  box(RE - sw, 23.2, sw, 4.8, a.status === '진행' ? '#2E7D4F' : NAVY, null, 0, 2.4);
+  T(stLab, RE - sw / 2, 26.6, 3.0, 900, '#fff', 'center');
+  box(10, 30.2, PWm - 20, 0.7, NAVY);
 
   // 점검 항목 (2026-11-08): 칸 = 흰 바탕 + 번호 동그라미(항목 색), 범례·목록은 항목별
   var IT = a.items || [], IH = {}; IT.forEach(function(i){ IH[i.k] = i; });
@@ -123,9 +126,11 @@ function paint(ctx, rec){
   if (CROP) T('대상 구간만 확대 · ' + f0 + '~' + f1 + '층 · ' + headOf(c0).replace('L', '') + '~' + headOf(c1).replace('L', '') + '호', 10, 33.4, 2.5, 700, MUTED, 'left');
   window.__crop = { c0: c0, c1: c1, f0: f0, f1: f1, crop: CROP };
   var BND = [4, 6, 12].filter(function(b){ return b > c0 && b <= c1; });
-  var X0 = 10, Y0 = 34, LW = 9, PW = 11, GW = 183 - LW - PW, G = 1.6, HEAD = 5;
+  var RX = PWm - 99, RWd = 89;   // 오른쪽 패널 자리 (A4: 198)
+  var X0 = 10, Y0 = 34, LW = 9, PW = 11, GW = RX - 15 - LW - PW, G = 1.6, HEAD = 5;
   var PITCH = Math.min(26, (GW - BND.length * G) / NC), RH = Math.min(12, (166 - HEAD) / NF);
   var K = Math.max(1, Math.min(1.7, Math.min(RH / 5.75, PITCH / 8.8)));   // 칸이 커진 만큼 글자도 (최대 1.7배)
+  if (WIDE) X0 = 10 + Math.max(0, (RX - 15 - (LW + NC * PITCH + BND.length * G + PW)) / 2);   // 16:9 는 도면을 왼쪽 자리 가운데에
   function cx(c){ return X0 + LW + (c - c0) * PITCH + BND.filter(function(b){ return c >= b; }).length * G; }
   function ry(f){ return Y0 + HEAD + (f1 - f) * RH; }
   var MW = cx(c1) + PITCH - X0 + PW;   // 도면 너비 (처리율 칸 포함)
@@ -164,7 +169,6 @@ function paint(ctx, rec){
   if (!rec) { ctx.strokeStyle = '#DDE2E8'; ctx.lineWidth = p(0.2); BND.forEach(function(c){ var xx = cx(c) - G / 2; ctx.beginPath(); ctx.moveTo(p(xx), p(Y0 + 1)); ctx.lineTo(p(xx), p(Y0 + HEAD + NF * RH)); ctx.stroke(); }); }
 
   // ----- 오른쪽 패널
-  var RX = 198, RWd = 89;
   box(RX, 34, RWd, 42, SOFT, null, 0, 2);
   T('진도율', RX + 4, 40.2, 3.2, 700, MUTED);
   T(st.pct + '%', RX + 4, 54.2, 13.5, 900, NAVY);
@@ -276,9 +280,9 @@ function paint(ctx, rec){
   }
 
   // ----- 바닥
-  box(10, 201.6, 277, 0.3, LINE);
+  box(10, 201.6, PWm - 20, 0.3, LINE);
   T(a.id + '  ·  정비 지원 앱 객실 활동판 기록 기준  ·  객실마다 마지막 체크 기준', 10, 205.6, 2.5, 400, MUTED);
-  T('주식회사 유니에스  ·  한화리조트 해운대 객실관리', 287, 205.6, 2.6, 700, NAVY, 'right');
+  T('주식회사 유니에스  ·  한화리조트 해운대 객실관리', RE, 205.6, 2.6, 700, NAVY, 'right');
 }
 
 // ---------- 시작 (데이터는 아래 module 이 Firestore 에서 받아 window.__actStart(P) 로 넘김)
@@ -287,9 +291,10 @@ function bar(){
   $('#ttl').textContent = D.name + ' · 진도 현황';
   document.title = D.name + ' 진도 현황';
   $('#bar').insertAdjacentHTML('beforeend', '<button class="pri" id="bprint" disabled>🖨 인쇄 · PDF 저장</button><button id="bpng" disabled>🖼 사진(PNG) 저장</button><a href="' + esc(location.href) + '">↻ 최신으로</a>' +
+    (WIDE ? '<a href="' + esc(location.href.replace(/[?&]r=169\b/, '')) + '">▯ A4 용지</a>' : '<a href="' + esc(location.href + (location.search ? '&' : '?') + 'r=169') + '">▭ 슬라이드 16:9</a>') +
     (/[?&]full=1/.test(location.search) ? '<a href="' + esc(location.href.replace(/[?&]full=1/, '')) + '">⤡ 대상 구간만</a>' : '<a href="' + esc(location.href + (location.search ? '&' : '?') + 'full=1') + '">⤢ 전체 도면</a>'));
 }
-function fileName(){ var t = (D.today || '').replace(/-/g, '').slice(4); return (D.name + '_진도현황_' + t).replace(/[\\/:*?"<>|]+/g, ' ') + '.png'; }
+function fileName(){ var t = (D.today || '').replace(/-/g, '').slice(4); return (D.name + '_진도현황_' + t + (WIDE ? '_16x9' : '')).replace(/[\\/:*?"<>|]+/g, ' ') + '.png'; }
 function build(){
   cv = document.createElement('canvas'); cv.width = W; cv.height = H;
   var ctx = cv.getContext('2d'), rec = [];
@@ -325,7 +330,7 @@ window.__actStart = function(p){
 </script>
 <script type="module">
 // 활동 문서와 객실 체크를 한 번 받아 앱과 같은 계산(act.js)으로 숫자를 만듦
-import * as store from './store.js?v=2026.11.09-1';
+import * as store from './store.js?v=2026.11.12-1';
 const id = new URLSearchParams(location.search).get('id') || '';
 const fail = m => window.__actStart({ err: m });
 let act = null, marks = null, started = false;

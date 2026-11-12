@@ -314,6 +314,16 @@ const openSec = async (p, sec, sel) => until(async () => { await p.evaluate(s =>
   ok(await until(() => pw.evaluate(() => !!window.__printed && window.__crop && !window.__crop.crop), 15000), '출력 ?full=1 → 전체 도면');
   const cr2 = await pr.evaluate(() => window.__crop).catch(() => null);
   ok(!cr2 || !cr2.crop, '대상이 넓은 활동(식탁)은 확대 안 함');
+  // 슬라이드 16:9 (11/12)
+  for (const [id2, nm2] of [[NID, 'print169_full.png'], [WID, 'print169_zoom.png']]) {
+    await pw.goto(BASE + 'print.html?id=' + id2 + '&r=169');
+    ok(await until(() => pw.evaluate(() => !!window.__printed), 15000), '16:9 출력 그림 완성 ' + id2);
+    const sz = await pw.evaluate(() => [cv.width, cv.height, document.body.innerText.indexOf('A4 용지') >= 0]);
+    ok(sz[0] === 4410 && sz[1] === 2480 && sz[2], '16:9 캔버스 4410×2480 · A4 로 돌아가기 링크 ' + JSON.stringify(sz));
+    if (process.env.SHOT) { const u = await pw.evaluate(() => png); fs.writeFileSync(process.env.SHOT.replace(/[^/]+$/, nm2), Buffer.from(u.split(',')[1], 'base64')); }
+  }
+  await pw.goto(BASE + 'print.html?id=' + NID);
+  ok(await until(() => pw.evaluate(() => !!window.__printed && cv.width === 3508 && document.body.innerText.indexOf('슬라이드 16:9') >= 0), 15000), 'A4 는 그대로 3508 · 16:9 링크');
   await pM.click('.ac-top [data-ac="list"]').catch(() => {});
 
   console.log('⑨ 보관함 · 다시 꺼내기 · 완전 삭제');
