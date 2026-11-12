@@ -75,6 +75,7 @@ async function flush() {
     }
   } finally { flushing = false; }
 }
+export async function getQuery(coll) { const r = await call('getq', { coll }); if (r.error) throw Object.assign(new Error(r.error), { code: r.error }); return (r.docs || []).map(x => ({ id: x.id, data: dec(x.data) })); }
 export function set(path, data) { return write('set', path, data); }
 export function del(path) { return write('delete', path, null); }
 export function add(coll, data) { const id = 'a' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8); return { id, done: write('create', coll + '/' + id, data) }; }

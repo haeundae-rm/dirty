@@ -8,7 +8,7 @@
 // 관리자 확인은 Firebase 로그인(소장·부소장 계정) + 보안 규칙. 화면의 adminTok 은 '관리자 모드' 표시용 값일 뿐
 (function () {
   'use strict';
-  var APP_VER = '2026.11.12-3';
+  var APP_VER = '2026.11.12-4';
   var TZ = 'Asia/Seoul';
   var API_URL = 'https://script.google.com/macros/s/AKfycbyPvhvScAcDfGqyxdK9pvr8vtewfjAkHsbRBiN04GCNbzE4HL_zZHODWPPb4xUHQb0LCw/exec';
   var ADMINS = { '소장': 'unieshaeundae+admin@gmail.com', '부소장': 'unieshaeundae+sub@gmail.com' };
@@ -443,6 +443,25 @@
         S.roster = { add: add.slice(), hide: hide.slice() }; changed();
         return S.store.set('sup_meta/roster', { add: add, hide: hide, at: S.store.SERVER_TIME, uid: S.user.uid });
       }
+    },
+    // 직원 명단 (11/12, staff/{id} — 관리자만, 규칙 v11): 메뉴를 열 때 한 번 읽음(실시간 구독 안 함)
+    staff: {
+      list: function () {
+        if (!S.admin || !S.user) return Promise.reject(new Error('관리자 로그인이 필요해요'));
+        return S.store.getQuery('staff', []).then(function (docs) { return docs.map(function (d) { return Object.assign({}, d.data, { id: d.id }); }); });
+      },
+      save: function (id, doc) {
+        if (!S.admin || !S.user) return Promise.reject(new Error('관리자 로그인이 필요해요'));
+        if (!/^[A-Za-z0-9_-]{2,40}$/.test(String(id))) return Promise.reject(new Error('문서 번호가 이상해요'));
+        var d = {}; Object.keys(doc).forEach(function (k) { if (k !== 'id' && doc[k] !== undefined) d[k] = doc[k]; });
+        d.at = S.store.SERVER_TIME; d.uid = S.user.uid;
+        return S.store.set('staff/' + id, d);
+      },
+      del: function (id) {
+        if (!S.admin || !S.user) return Promise.reject(new Error('관리자 로그인이 필요해요'));
+        return S.store.del('staff/' + id);
+      },
+      newId: function () { return 'm' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
     },
     // 관리자 '더티 배분 만들기'(dist.js)용
     dist: {
