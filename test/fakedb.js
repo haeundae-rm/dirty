@@ -92,7 +92,7 @@ function make() {
       return { data: viewOf({ type: a.type, path: a.path, coll: a.coll }) };
     }
     if (op === 'unsub') { subs.delete(a.id); return {}; }
-    if (op === 'getq') { if (!canRead(a.uid, a.coll)) return { error: 'permission-denied' }; return { docs: collOf(a.coll) }; }
+    if (op === 'getq') { if (api.denyStaff && a.coll === 'staff') return { error: 'permission-denied' }; if (!canRead(a.uid, a.coll)) return { error: 'permission-denied' }; return { docs: collOf(a.coll) }; }
     if (op === 'get') { if (!canRead(a.uid, a.path)) return { error: 'permission-denied' }; return { data: docs.has(a.path) ? docs.get(a.path) : null }; }
     if (op === 'write') {
       const why = canWrite(a.uid, a.op, a.path, a.data);
@@ -103,6 +103,7 @@ function make() {
     }
     return { error: 'unknown-op' };
   }
-  return { docs, subs, log, handle, serverWrite, PW, BOT, ADMIN };
+  const api = { docs, subs, log, handle, serverWrite, PW, BOT, ADMIN, denyStaff: false };
+  return api;
 }
 module.exports = { make };

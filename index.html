@@ -235,7 +235,7 @@ main{padding:16px 16px 48px;max-width:760px;margin:0 auto;display:flex;flex-dire
 @media (prefers-reduced-motion:reduce){.confetti{display:none}.thanks div{animation:none}}
 @media (rm-light-only){.stat .big,.sum .left .n,.floor{color:color-mix(in srgb,var(--wc) 55%,#fff)}}
 </style>
-<link rel="stylesheet" href="aplus.css?v=2026.11.12-4">
+<link rel="stylesheet" href="aplus.css?v=2026.11.12-5">
 </head>
 <body>
 <header class="top">
@@ -246,9 +246,9 @@ main{padding:16px 16px 48px;max-width:760px;margin:0 auto;display:flex;flex-dire
 </header>
 <main id="main"><div class="notice"><strong>오늘 배정을 불러오고 있어요.</strong></div></main>
 <div id="sheet"></div>
-<script src="server.js?v=2026.11.12-4"></script>
-<script src="act.js?v=2026.11.12-4"></script>
-<script src="shim.js?v=2026.11.12-4"></script>
+<script src="server.js?v=2026.11.12-5"></script>
+<script src="act.js?v=2026.11.12-5"></script>
+<script src="shim.js?v=2026.11.12-5"></script>
 <script>
 var plan = null, checks = {}, tab = null, dlg = null, busyChg = false, pver = 0;  // pver: 담당 변경 횟수. 변경 전에 출발한 응답의 담당 정보는 버림
 var openCards = {}, openSecs = {};
@@ -1508,10 +1508,8 @@ setInterval(function(){ if (document.visibilityState === 'visible') refresh(); }
     var R = null;
     var prev = render;
     render = function(){ prev.apply(this, arguments); try { put(); } catch (e) {} };
-    function put(){
-      var am = document.querySelector('#main .amode');
-      if (am && adminTok && !am.querySelector('.rs-open')) am.insertAdjacentHTML('beforeend', '<button class="ghost rs-open" data-rs="open">👥 정비보조 명단</button>');
-    }
+    function put(){}   // 11/12: 관리자 버튼은 '👥 정비보조 명단'(직원 명단 staff, 아래)으로 바뀜 — 이 예전 창은 규칙 v11 게시 전 예비로만 엶 (RosterOld.open)
+    window.RosterOld = { open: function(){ var g = SupShim.roster.get(); R = { add: g.add, hide: g.hide, typed: '', err: '' }; draw(); } };
     function box(){ var b = document.getElementById('rs-pop'); if (!b) { b = document.createElement('div'); b.id = 'rs-pop'; document.body.appendChild(b); } return b; }
     function draw(){
       var b = box(); if (!R) { b.innerHTML = ''; return; }
@@ -1563,9 +1561,57 @@ setInterval(function(){ if (document.visibilityState === 'visible') refresh(); }
 </script>
 
 <script>SupShim.post();</script>
-<script src="distcalc.js?v=2026.11.12-4"></script>
-<script src="dist.js?v=2026.11.12-4"></script>
-<script src="staff.js?v=2026.11.12-4"></script>
-<script type="module" src="boot.js?v=2026.11.12-4"></script>
+<script src="distcalc.js?v=2026.11.12-5"></script>
+<script src="dist.js?v=2026.11.12-5"></script>
+<script src="staff.js?v=2026.11.12-5"></script>
+<script>
+/* 정비보조 명단 (2026-11-12): 직원 명단(staff, 직종 '정비보조')을 관리자가 관리 → 저장할 때 근무자 이름 고르기 목록(sup_meta/roster)도 맞춤
+   재직·입사 진행 = 이름 목록에 넣음, 퇴사 = 이름 목록에서 뺌. 최근 근무했는데 명단에 없는 이름은 눌러서 추가 */
+(function(){
+  try {
+    if (typeof render !== 'function' || !window.SupShim || !SupShim.staff || !window.StaffBook) return;
+    var JOB = '정비보조';
+    var prev = render;
+    render = function(){ prev.apply(this, arguments); try { put(); } catch (e) {} };
+    function put(){
+      var am = document.querySelector('#main .amode');
+      if (am && adminTok && !am.querySelector('.sb-open')) am.insertAdjacentHTML('beforeend', '<button class="ghost sb-open" data-sbopen="1">👥 정비보조 명단</button>');
+    }
+    function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){ return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+    function sync(list, info){
+      var active = [], gone = [], rm = info && info.removed ? String(info.removed).trim() : '';
+      list.forEach(function(p){ var n = String(p.name || '').trim(); if (!n) return; if ((p.status || '재직') === '퇴사') gone.push(n); else active.push(n); });
+      gone = gone.filter(function(n){ return active.indexOf(n) < 0; });
+      var g = SupShim.roster.get();
+      var add = g.add.concat(active).filter(function(n, i, a){ return a.indexOf(n) === i && gone.indexOf(n) < 0 && (n !== rm || active.indexOf(n) >= 0); });   // 명단에서 지운 분은 직접 넣은 이름에서도 뺌
+      var hide = g.hide.filter(function(n){ return active.indexOf(n) < 0; }).concat(gone).filter(function(n, i, a){ return a.indexOf(n) === i; });
+      if (JSON.stringify(add) === JSON.stringify(g.add) && JSON.stringify(hide) === JSON.stringify(g.hide)) return;
+      SupShim.roster.save(add, hide).then(null, function(e){ try { note('⚠ 이름 목록 맞추기 실패: ' + (e && (e.code || e.message) || e)); } catch (x) {} });
+      try { render(); } catch (e) {}
+    }
+    function extra(list){
+      var have = {}; list.forEach(function(p){ have[String(p.name || '').replace(/\s+/g, '')] = 1; });
+      var miss = SupShim.roster.names().filter(function(n){ return !have[String(n).replace(/\s+/g, '')]; });
+      if (!miss.length) return '';
+      return '<section class="sb-sec"><h3>명단에 아직 없는 이름 ' + miss.length + '명</h3><p class="sb-tip" style="margin:0">최근 근무했거나 예전 명단에 넣었던 분이에요. 눌러서 입사일과 함께 넣어 주세요.</p>' +
+        '<div class="sb-chips">' + miss.map(function(n){ return '<button data-sb="prefill" data-v="' + esc(n) + '">＋ ' + esc(n) + '</button>'; }).join('') + '</div></section>';
+    }
+    function open(){
+      StaffBook.open({ job: JOB, title: '👥 정비보조 명단', gradeHint: '없으면 비워 두세요',
+        api: { list: function(){ return SupShim.staff.list(JOB); }, save: SupShim.staff.save, del: SupShim.staff.del, newId: SupShim.staff.newId },
+        extra: extra, onChange: sync,
+        errExtra: function(){ return '<p class="sb-tip">규칙 게시 전에는 예전 이름 목록 화면을 쓸 수 있어요.</p><button class="sb-go sb-2" style="width:100%;margin-top:8px" data-rsold="1">예전 이름 목록 열기</button>'; } });
+    }
+    document.addEventListener('click', function(e){
+      var t = e.target.closest && e.target.closest('[data-sbopen],[data-rsold]'); if (!t) return;
+      e.preventDefault();
+      if (t.hasAttribute('data-rsold')) { StaffBook.close(); if (window.RosterOld) RosterOld.open(); return; }
+      open();
+    });
+    put();
+  } catch (e) { try { console.warn('정비보조 명단을 붙이지 못했어요', e); } catch (e2) {} }
+})();
+</script>
+<script type="module" src="boot.js?v=2026.11.12-5"></script>
 </body>
 </html>

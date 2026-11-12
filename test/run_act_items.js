@@ -376,8 +376,8 @@ const openSec = async (p, sec, sel) => until(async () => { await p.evaluate(s =>
   console.log('⑦ 정비보조 명단');
   await pM.click('.ac-top [data-x="1"], .ac-top [data-ac="list"]').catch(() => {});
   await pM.click('.ac-top [data-x="1"]').catch(() => {});
-  ok(await until(async () => (await pM.locator('.amode [data-rs="open"]').count()) === 1, 6000), "관리자 화면에 '👥 정비보조 명단' 버튼");
-  await pM.click('.amode [data-rs="open"]');
+  ok(await until(async () => (await pM.locator('.amode [data-sbopen]').count()) === 1, 6000), "관리자 화면에 '👥 정비보조 명단' 버튼 (11/12~ 직원 명단)");
+  await pM.evaluate(() => RosterOld.open());   // 예전 이름 목록 창 (규칙 v11 게시 전 예비)
   ok(await until(async () => /정비보조 명단 3명/.test(await txt(pM, '#rs-pop'))), '명단 창: 최근 근무자 3명');
   await pM.fill('#rs-new', '신입보조'); await pM.click('[data-rs="add"]');
   ok(await until(() => { const d = db.docs.get('sup_meta/roster'); return d && JSON.stringify(d.add) === '["신입보조"]'; }), "sup_meta/roster.add = ['신입보조']");
