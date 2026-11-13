@@ -14,7 +14,7 @@ G.makeSupServer = function (env) {
  *            종류: 가져옴(지원 없음 → 담당, 배정 객실 전체 + 지원 수량) / 수정(지원 수량·객실 추가/삭제)
  *                  되돌림(가져온 메이드를 다시 지원 없음으로) / 넘겨받음(다른 정비보조 담당을 가져옴)
  *                  인원추가(정비보조 추가, 메이드 칸 비움) / 근무종료(정비보조 빠짐, 메이드 칸 비움)
- *            더티지원 칸이 비어 있으면 수량은 그대로, 삭제객실은 웹앱에서 추가했던 객실만 지울 수 있음
+ *            더티지원 칸이 비어 있으면 수량은 그대로. 삭제객실 = 그 메이드 객실에서 뺌 (11/13~ 원래 배정 객실도 뺄 수 있음 — 정비보조가 이미 체크한 객실은 화면에서 못 뺌)
  *            인원추가·근무종료는 그날만 적용 (다음 날은 새 배정 기준)
  * 웹앱은 오늘 날짜 배정을 보여주고, 오늘 배정이 없으면 가장 최근 날짜를 보여줌
  * 자동 반영: 구글 드라이브 '더티 배분' 폴더에 check_rows_MMDD.csv 가 새로 올라오면 (1분마다 확인)
@@ -141,8 +141,8 @@ function state_(wantDate) {
       const m = maids[String(r[3]).trim()];
       if (!m) return;
       const add = rooms_(r[5]), dirty = r[6] === '' ? null : (Number(r[6]) || 0);
-      const del = rooms_(r[7]).filter(x => m.added.indexOf(x) >= 0);
-      del.forEach(x => { m.added.splice(m.added.indexOf(x), 1); m.rooms.splice(m.rooms.indexOf(x), 1); });
+      const del = rooms_(r[7]).filter(x => m.rooms.indexOf(x) >= 0);
+      del.forEach(x => { if (m.added.indexOf(x) >= 0) m.added.splice(m.added.indexOf(x), 1); else (m.cut = m.cut || []).push(x); m.rooms.splice(m.rooms.indexOf(x), 1); });
       add.forEach(x => { if (m.rooms.indexOf(x) < 0) { m.rooms.push(x); m.added.push(x); } });
       let from = '';
       if (kind === '가져옴' && !m.worker) {
@@ -304,7 +304,9 @@ function change(date, kind, maid, worker, rooms, dirty, removeRooms) {
     if (kind === '수정' && !m.worker) throw new Error(maid + ' 님은 아직 담당자가 없어요. 먼저 내 담당으로 가져와 주세요.');
     if (kind === '되돌림' && !m.taken) throw new Error(maid + ' 님은 원래 배정된 담당이라 되돌릴 수 없어요.');
     const add = rooms_(rooms).filter(x => m.rooms.indexOf(x) < 0);
-    const del = kind === '수정' ? rooms_(removeRooms).filter(x => m.added.indexOf(x) >= 0) : [];
+    const del = kind === '수정' ? rooms_(removeRooms).filter(x => m.rooms.indexOf(x) >= 0) : [];
+    const ck = checksFor_(date), hit = del.filter(x => ck[x]);
+    if (hit.length) throw new Error(hit.join(', ') + '호는 이미 체크한 객실이라 뺄 수 없어요. 먼저 체크를 취소해 주세요.');
     let n = (kind !== '되돌림' && dirty !== null && dirty !== undefined && dirty !== '') ? Math.max(0, Math.min(99, Number(dirty) || 0)) : '';
     if (kind === '수정' && n === m.dirty) n = '';
     if (kind === '가져옴' && !(n >= 1)) throw new Error('지원 수량을 1실 이상 입력해 주세요.');

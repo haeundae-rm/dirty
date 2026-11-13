@@ -235,7 +235,7 @@ main{padding:16px 16px 48px;max-width:760px;margin:0 auto;display:flex;flex-dire
 @media (prefers-reduced-motion:reduce){.confetti{display:none}.thanks div{animation:none}}
 @media (rm-light-only){.stat .big,.sum .left .n,.floor{color:color-mix(in srgb,var(--wc) 55%,#fff)}}
 </style>
-<link rel="stylesheet" href="aplus.css?v=2026.11.12-5">
+<link rel="stylesheet" href="aplus.css?v=2026.11.13-1">
 </head>
 <body>
 <header class="top">
@@ -246,9 +246,9 @@ main{padding:16px 16px 48px;max-width:760px;margin:0 auto;display:flex;flex-dire
 </header>
 <main id="main"><div class="notice"><strong>오늘 배정을 불러오고 있어요.</strong></div></main>
 <div id="sheet"></div>
-<script src="server.js?v=2026.11.12-5"></script>
-<script src="act.js?v=2026.11.12-5"></script>
-<script src="shim.js?v=2026.11.12-5"></script>
+<script src="server.js?v=2026.11.13-1"></script>
+<script src="act.js?v=2026.11.13-1"></script>
+<script src="shim.js?v=2026.11.13-1"></script>
 <script>
 var plan = null, checks = {}, tab = null, dlg = null, busyChg = false, pver = 0;  // pver: 담당 변경 횟수. 변경 전에 출발한 응답의 담당 정보는 버림
 var openCards = {}, openSecs = {};
@@ -659,6 +659,13 @@ function drawDlg(){
     body = '<h3>'+esc(m.name)+' 님 수량·객실 수정</h3><p>'+esc(m.floors)+' · 배정 객실 '+m.rooms.length+'실 · 지금 완료 '+doneOf(m)+'실</p>'+
       '<label for="qty">더티 지원 수량 (목표)</label><div class="step"><button data-n="-1" aria-label="1실 줄이기">−</button><input id="qty" class="qtyin" type="number" inputmode="numeric" min="0" max="99" value="'+esc(dlg.n)+'"><button data-n="1" aria-label="1실 늘리기">+</button><span style="color:var(--muted);font-size:14px">실</span></div>'+
       (added.length ? '<label>추가한 객실 (×를 누르면 삭제)</label><div class="chips">'+added.map(function(r){ return '<button class="chip" data-del="'+esc(r)+'">'+esc(r)+' <b>×</b></button>'; }).join('')+'</div>' : '')+
+      (function(){   /* 11/13: 원래 배정 객실도 더티 대상에서 빼기 (체크한 객실은 못 뺌) */
+        var orig = m.rooms.filter(function(r){ return (m.added || []).indexOf(r) < 0 && dlg.del.indexOf(r) < 0; });
+        if (!orig.length) return '';
+        return '<label>배정 객실에서 빼기 (×를 누르면 더티 대상에서 빠져요 · 체크한 객실은 못 빼요)</label><div class="chips">'+orig.map(function(r){
+          return checks[r] ? '<span class="chip" style="opacity:.45">'+esc(r)+' ✓</span>' : '<button class="chip" data-del="'+esc(r)+'">'+esc(r)+' <b>×</b></button>'; }).join('')+'</div>';
+      })()+
+      (dlg.del.length ? '<p style="margin:6px 0 0;color:var(--warn);font-weight:700">뺄 객실: '+esc(dlg.del.join(', '))+' <button class="chip" data-undel="1" style="margin-left:6px">되돌리기</button></p>' : '')+
       '<label for="addr">늘어난 객실 번호 (있으면 입력, 여러 개는 쉼표로)</label><input id="addr" type="text" inputmode="numeric" placeholder="예: 1606, 1610" value="'+esc(dlg.rooms)+'">'+
       errHtml()+btns('닫기', '저장', true);
   } else if (k === 'uncheck') {
@@ -837,6 +844,7 @@ document.addEventListener('click', function(e){
     var md = t.closest('[data-mode]'); if (md) { keep(); dlg.mode = md.getAttribute('data-mode'); drawDlg(); return; }
     var sn = t.closest('[data-n]'); if (sn) { keep(); dlg.n = String(Math.max(0, Math.min(99, (parseInt(dlg.n, 10) || 0) + Number(sn.getAttribute('data-n'))))); drawDlg(); return; }
     var dl = t.closest('[data-del]'); if (dl) { keep(); dlg.del.push(dl.getAttribute('data-del')); drawDlg(); return; }
+    if (t.closest('[data-undel]')) { keep(); dlg.del = []; drawDlg(); return; }
     var tk2 = t.closest('[data-task]'); if (tk2) { keep(); dlg.task = tk2.getAttribute('data-task'); dlg.err = ''; drawDlg(); return; }
     var mym = t.closest('[data-mym]'); if (mym && dlg.kind === 'mywork') { var p0 = (dlg.ym || '').split('-'), dd = new Date(Number(p0[0]), Number(p0[1]) - 1 + Number(mym.getAttribute('data-mym')), 1); dlg.ym = dd.getFullYear() + '-' + ('0' + (dd.getMonth() + 1)).slice(-2); loadMonth(); return; }
     if (t.closest('[data-attclear]') && dlg.kind === 'attedit') { var cn = dlg.name; call('attEdit', [plan.date, cn, '', '', true, adminTok], 'att', function(){ note(cn + ' 님 오늘 출근 기록을 취소했어요.'); }); return; }
@@ -1561,9 +1569,9 @@ setInterval(function(){ if (document.visibilityState === 'visible') refresh(); }
 </script>
 
 <script>SupShim.post();</script>
-<script src="distcalc.js?v=2026.11.12-5"></script>
-<script src="dist.js?v=2026.11.12-5"></script>
-<script src="staff.js?v=2026.11.12-5"></script>
+<script src="distcalc.js?v=2026.11.13-1"></script>
+<script src="dist.js?v=2026.11.13-1"></script>
+<script src="staff.js?v=2026.11.13-1"></script>
 <script>
 /* 정비보조 명단 (2026-11-12): 직원 명단(staff, 직종 '정비보조')을 관리자가 관리 → 저장할 때 근무자 이름 고르기 목록(sup_meta/roster)도 맞춤
    재직·입사 진행 = 이름 목록에 넣음, 퇴사 = 이름 목록에서 뺌. 최근 근무했는데 명단에 없는 이름은 눌러서 추가 */
@@ -1635,6 +1643,6 @@ setInterval(function(){ if (document.visibilityState === 'visible') refresh(); }
   } catch (e) {}
 })();
 </script>
-<script type="module" src="boot.js?v=2026.11.12-5"></script>
+<script type="module" src="boot.js?v=2026.11.13-1"></script>
 </body>
 </html>
