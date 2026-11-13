@@ -1612,6 +1612,29 @@ setInterval(function(){ if (document.visibilityState === 'visible') refresh(); }
   } catch (e) { try { console.warn('정비보조 명단을 붙이지 못했어요', e); } catch (e2) {} }
 })();
 </script>
+<script>
+/* 관리자 허브 안에서 열기 (2026-11-13): 주소에 ?hub=act 가 있으면 — 관리자 로그인이 확인되는 대로 '객실 활동판'을 바로 열고,
+   활동판을 닫으면 허브(부모 창)에 알려서 허브가 이 화면을 닫음. 주소에 ?hub= 가 없으면 아무것도 안 함 (정비보조 휴대폰 영향 없음) */
+(function(){
+  try {
+    var m = /[?&]hub=(\w+)/.exec(location.search); if (!m || m[1] !== 'act') return;
+    document.documentElement.classList.add('hubmode');
+    var st = document.createElement('style'); st.textContent = 'html.hubmode body>header.top,html.hubmode #main{visibility:hidden}html.hubmode body{background:var(--bg,#F6F4F1)}'; document.head.appendChild(st);
+    var opened = false, t0 = Date.now();
+    var iv = setInterval(function(){
+      try {
+        if (!opened) {
+          var b = document.querySelector('#main .amode [data-ac="open"]');
+          if (adminTok && b) { b.click(); opened = true; return; }
+          if (Date.now() - t0 > 20000) { clearInterval(iv); try { parent.postMessage({ hub: 'noadmin' }, location.origin); } catch (e) {} }
+          return;
+        }
+        if (!(dlg && dlg.kind === 'act')) { clearInterval(iv); try { parent.postMessage({ hub: 'close' }, location.origin); } catch (e) {} }
+      } catch (e) {}
+    }, 300);
+  } catch (e) {}
+})();
+</script>
 <script type="module" src="boot.js?v=2026.11.12-5"></script>
 </body>
 </html>
