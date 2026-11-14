@@ -58,7 +58,7 @@
     if (!A || !A.isAdmin()) { alert('관리자 모드에서만 쓸 수 있어요.'); return; }
     var day = A.today();
     K = { date: day, file: '', data: null, sheet: '', sum: null, err: '', busy: false, saving: false,
-          pick: {}, order: [], rule: null, memo: {}, over: {}, move: {}, res: null, ruleOpen: false, done: null, extra: '', renamed: {} };
+          pick: {}, order: [], rule: null, memo: {}, over: {}, move: {}, res: null, ruleOpen: false, done: null, extra: '', renamed: {}, dropped: {}, delMode: false };
     var box = document.createElement('div');
     box.className = 'dz'; box.id = 'dz';
     document.body.appendChild(box);
@@ -110,8 +110,10 @@
     });
   }
   function names() {
-    var A = api(), p = window.plan || {}, out = [];
-    function add(n) { n = String(n || '').trim(); if (n && n !== '관리자' && out.indexOf(n) < 0) out.push(n); }
+    var A = api(), p = window.plan || {}, out = [], hid = {};
+    try { (SupShim.roster.get().hide || []).forEach(function (n) { hid[n] = 1; }); } catch (e) {}
+    Object.keys(K.dropped || {}).forEach(function (n) { hid[n] = 1; });
+    function add(n) { n = String(n || '').trim(); if (n && n !== '관리자' && out.indexOf(n) < 0 && (!hid[n] || K.pick[n])) out.push(n); }   // 11/14: 목록에서 뺀 이름은 고르지 않았으면 안 보임
     K.order.forEach(add);
     Object.keys(p.att || {}).forEach(function (n) { if (p.att[n].in) add(n); });
     (p.workers || []).forEach(function (w) { add(w.name); });
@@ -119,6 +121,7 @@
     A.knownNames().forEach(add);
     return out;
   }
+  function hiddenName(n) { try { return (SupShim.roster.get().hide || []).indexOf(n) >= 0; } catch (e) { return false; } }
   // 한 글자만 다른 같은 길이 이름 (예: 정명애 → 정명예) — 오타 고치기 후보
   function oneOff(a, b) {
     a = String(a); b = String(b); if (a === b || a.length !== b.length || a.length < 2) return false;
@@ -183,10 +186,12 @@
       '<p class="dz-tot">총원 <b>' + (ws.length + es.length) + '명</b> = 더티 ' + ws.length + '명 + 기타 업무 ' + es.length + '명</p><div class="dz-chips">' +
       names().map(function (n) {
         var s = K.pick[n], no = s === 'd' ? ws.indexOf(n) + 1 : 0;
+        if (K.delMode && !s) return '<button data-dz="drop" data-v="' + esc(n) + '" class="x">✕ ' + esc(n) + '</button>';
         return '<button data-dz="who" data-v="' + esc(n) + '" class="' + (s === 'd' ? 'd' : s === 'e' ? 'e' : '') + '">' + (s === 'd' ? '<em>' + no + '</em>🛏 ' : s === 'e' ? '🧰 ' : '') + esc(n) + '</button>';
       }).join('') + '</div>' + (es.length ? '<div class="dz-memo">' + es.map(function (n) {
         return '<label><span>🧰 ' + esc(n) + '</span><input data-dz="memo" data-v="' + esc(n) + '" maxlength="30" placeholder="비고 (예: 단체 침구)" value="' + esc(K.memo[n] || '') + '"></label>';
-      }).join('') + '</div>' : '') + '<div class="dz-add"><input data-dz="newname" maxlength="20" placeholder="새 이름" value="' + esc(K.extra) + '"><button data-dz="addname">+ 추가</button></div>' +
+      }).join('') + '</div>' : '') + '<div class="dz-add"><input data-dz="newname" maxlength="20" placeholder="새 이름" value="' + esc(K.extra) + '"><button data-dz="addname">+ 추가</button><button data-dz="delmode"' + (K.delMode ? ' class="on"' : '') + '>' + (K.delMode ? '다 됐어요' : '이름 빼기') + '</button></div>' +
+      (K.delMode ? '<p class="dz-tip">✕ 이름을 누르면 정비보조 이름 목록에서 빠져요 (출근·더티로 고른 분은 먼저 눌러서 빼 주세요). 직원 명단에 있는 분은 👥 정비보조 명단에서 퇴사·삭제해 주세요.</p>' : '') +
       '<p class="dz-tip">더티 번호 순서대로 카드 앞쪽(낮은 층) 메이드부터 맡아요. 순서를 바꾸려면 빼고 다시 누르세요.</p></section>';
     // 4 기준표
     var R = K.rule || DEF_RULE;
@@ -404,6 +409,7 @@
       var near = K.pick[n] ? null : K.order.filter(function (o) { return K.pick[o] && oneOff(o, n); })[0];
       if (near && confirm(near + ' 님 이름을 ' + n + '(으)로 고칠까요?\n\n· 순서·비고·옮기기는 그대로 두고 이름만 바꿔요\n· [취소]를 누르면 새 사람으로 따로 추가해요')) renameWorker(near, n);
       else if (!K.pick[n]) { K.pick[n] = 'd'; if (K.order.indexOf(n) < 0) K.order.push(n); }
+      if (K.dropped[n] || hiddenName(n)) { delete K.dropped[n]; try { var g2 = SupShim.roster.get(); SupShim.roster.save(g2.add, g2.hide.filter(function (x) { return x !== n; })).then(null, function () {}); } catch (e) {} }
       draw(); return;
     }
     if (a === 'reshow') {
@@ -412,6 +418,17 @@
       draw(); var bx = document.getElementById('dz'); if (bx) bx.scrollTop = 0; return;
     }
     if (a === 'back') { K.done = null; K.reshow = false; K.card = null; K.doneRule = null; draw(); return; }
+    if (a === 'delmode') { K.delMode = !K.delMode; draw(); return; }
+    if (a === 'drop') {
+      if (!confirm(v + ' 님을 정비보조 이름 목록에서 뺄까요?\n\n· 이름 고르기 화면과 여기 칩에서 안 보여요\n· 이미 남은 근무 기록은 그대로예요\n· 다시 넣으려면 새 이름 칸에 적고 + 추가')) return;
+      K.dropped[v] = 1; draw();
+      try {
+        var g = SupShim.roster.get();
+        SupShim.roster.save(g.add.filter(function (x) { return x !== v; }), g.hide.indexOf(v) < 0 ? g.hide.concat([v]) : g.hide)
+          .then(null, function (e) { if (K) { delete K.dropped[v]; K.err = '이름을 빼지 못했어요: ' + (e && (e.code || e.message) || e); draw(); } });
+      } catch (e) {}
+      return;
+    }
     if (a === 'ruletoggle') { K.ruleOpen = !K.ruleOpen; draw(); return; }
     if (a === 'reset') { K.over = {}; K.move = {}; draw(); return; }
     if (a === 'save') { save(); return; }
@@ -481,6 +498,7 @@
     '.dz-chips em{font-style:normal;display:inline-block;min-width:20px;height:20px;line-height:20px;border-radius:99px;background:#fff;color:var(--brand,#9A4708);font-size:12px;margin-right:4px;text-align:center}',
     '.dz-add{display:flex;gap:8px;margin-top:10px}.dz-add input{flex:1;min-height:44px;border:1.5px solid var(--line);border-radius:12px;padding:0 12px;font:16px inherit;font-family:inherit}',
     '.dz-add button{min-height:44px;padding:0 14px;border:0;border-radius:12px;background:var(--tile,#F7F2EC);font:700 15px inherit;font-family:inherit;cursor:pointer}',
+    '.dz-add button.on{background:#14213D;color:#fff}.dz-chips button.x{border-style:dashed;border-color:#C0392B;color:#C0392B;background:#FDF2F0}',
     '.dz-rule{margin:0;font-size:14.5px;line-height:1.6}.dz-link{border:0;background:none;color:var(--brand,#9A4708);font:700 14px inherit;font-family:inherit;text-decoration:underline;cursor:pointer;padding:4px}',
     '.dz-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:10px}.dz-grid label{display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--muted);font-weight:700}',
     '.dz-grid input{min-height:42px;border:1.5px solid var(--line);border-radius:10px;text-align:center;font:700 16px var(--f-num,inherit);width:100%;box-sizing:border-box}.dz-grid label.on input{border-color:var(--brand,#9A4708);background:#FDF0DC}',

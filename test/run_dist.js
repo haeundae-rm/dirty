@@ -185,6 +185,17 @@ const chip = (p, n) => p.locator('.dz [data-dz="who"][data-v="' + n + '"]');
   await pM.fill('.dz [data-dz="newname"]', '이나현'); await pM.click('.dz [data-dz="addname"]');
   ok(await pM.evaluate(o => JSON.stringify(SupDist._K().order) === JSON.stringify(o), ord0), '다시 이나현 으로 되돌림');
   await pM.evaluate(() => { SupDist._K().renamed = {}; });
+  // 11/14 이름 빼기
+  await pM.evaluate(() => { const g = SupShim.roster.get(); return SupShim.roster.save(g.add.concat(['임시분']), g.hide); });   // 명단에 넣어 둔 이름
+  await pM.click('.dz [data-dz="ruletoggle"]'); await pM.click('.dz [data-dz="ruletoggle"]');   // 다시 그리기
+  await pM.click('.dz [data-dz="delmode"]');
+  ok(await pM.locator('.dz [data-dz="drop"][data-v="임시분"]').count() === 1 && await pM.locator('.dz [data-dz="drop"][data-v="니라기"]').count() === 0, '이름 빼기: 안 고른 이름만 ✕ (고른 분은 그대로)');
+  await pM.click('.dz [data-dz="drop"][data-v="임시분"]');
+  ok(await until(() => { const r = db.docs.get('sup_meta/roster'); return r && r.hide.indexOf('임시분') >= 0; }) && await pM.locator('.dz [data-v="임시분"]').count() === 0, '임시분 → 이름 목록에서 빠짐 (roster hide)');
+  await pM.click('.dz [data-dz="delmode"]');
+  await pM.fill('.dz [data-dz="newname"]', '임시분'); await pM.click('.dz [data-dz="addname"]');
+  ok(await until(() => { const r = db.docs.get('sup_meta/roster'); return r && r.hide.indexOf('임시분') < 0; }) && (await chip(pM, '임시분').getAttribute('class')) === 'd', '다시 + 추가하면 되살아남');
+  await chip(pM, '임시분').click(); await chip(pM, '임시분').click();
   await chip(pM, '이나현').click();   // 더티 → 기타
   await pM.setInputFiles('.dz input[type=file]', XLSX);
   await until(async () => (await pM.locator('.dz-b:not(.dz-pool)').count()) === 2, 8000);

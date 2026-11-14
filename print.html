@@ -38,7 +38,7 @@ body{background:#5B6573;color:#16202C;font:15px/1.45 "Noto Sans KR","Apple SD Go
 <p class="tip" id="tip" hidden></p>
 <div id="print"></div>
 <script>if (/[?&]r=169\b/.test(location.search)) document.write('<style>@page{size:373.33mm 210mm;margin:0}@media print{html,body{width:373.33mm}#print img{width:373.33mm}}</style>');</script>
-<script src="act.js?v=2026.11.14-2"></script>
+<script src="act.js?v=2026.11.14-3"></script>
 <script>
 var P = null, D = null;
 var WIDE = /[?&]r=169\b/.test(location.search);   // 슬라이드용 16:9 (11/12): 높이는 A4 그대로(210mm), 너비만 373.3mm 로 넓혀 도면 칸을 가로로 넉넉히 — 글자·칸 높이는 A4 와 같음
@@ -330,7 +330,7 @@ window.__actStart = function(p){
 </script>
 <script type="module">
 // 활동 문서와 객실 체크를 한 번 받아 앱과 같은 계산(act.js)으로 숫자를 만듦
-import * as store from './store.js?v=2026.11.14-2';
+import * as store from './store.js?v=2026.11.14-3';
 const id = new URLSearchParams(location.search).get('id') || '';
 const fail = m => window.__actStart({ err: m });
 let act = null, marks = null, started = false;
