@@ -142,7 +142,11 @@
     recompute();
     var t = A.today(), tm = A.shift(t, 1);
     var h = '<div class="dz-in"><div class="dz-head"><h2>더티 배분 만들기</h2><button class="dz-x" data-dz="close" aria-label="닫기">✕</button></div>';
-    if (K.done) { box.innerHTML = h + doneHtml() + '</div>'; return; }
+    if (K.done) {
+      box.innerHTML = h + doneHtml() + '</div>';
+      try { if (!K.card) K.card = cardCanvas(K.done, K.rule || DEF_RULE, K.date); var im = document.getElementById('dzimg'); if (im) im.src = K.card.toDataURL('image/png'); } catch (e) { var mm = document.getElementById('dzimgmsg'); if (mm) mm.textContent = '이미지를 그리지 못했어요: ' + (e && e.message || e); }
+      return;
+    }
     if (K.src && K.res && K.res.blocks && K.res.blocks.length) h += '<p class="dz-ready">✅ 배분안이 준비됐어요 — 레포트 앱 정비보고서 + ' + (K.date === t ? '출근 체크' : '지난 확정 명단') + '로 채웠어요. 아래 정비보조·미리보기를 확인하고 <b>확정</b>만 누르세요.</p>';
     // 1 날짜
     h += '<section class="dz-sec"><h3><i>1</i>날짜</h3><div class="dz-seg">' +
@@ -216,11 +220,90 @@
     if (r.warn.length) h += '<div class="dz-warns">' + r.warn.map(function (w) { return '<p>⚠ ' + esc(w) + '</p>'; }).join('') + '</div>';
     return h;
   }
+  // ---------- 전파 이미지 (2026-11-14 사용자 요청): 기준표 + 오늘 정비보조 담당 → PNG (카톡에 붙여넣기·저장·공유)
+  var WD = ['일', '월', '화', '수', '목', '금', '토'];
+  function ruleTiles(R0) {
+    var R = SupDistCalc.normRule(R0), out = [], u = 19, top = Number(R['19']), low = 0, i;
+    if (top > 0) { while (u > 4 && Number(R[String(u - 1)]) === top) u--; out.push({ k: u + '개↑', v: top }); u--; }
+    for (; u >= 4; u--) if (Number(R[String(u)]) > 0) out.push({ k: u + '개', v: Number(R[String(u)]) });
+    for (i = 4; i <= 19; i++) if (Number(R[String(i)]) > 0) { low = i; break; }
+    return { tiles: out, none: low > 4 ? low - 1 : 0 };
+  }
+  function rr(c, x, y, w, h, r) { c.beginPath(); c.moveTo(x + r, y); c.arcTo(x + w, y, x + w, y + h, r); c.arcTo(x + w, y + h, x, y + h, r); c.arcTo(x, y + h, x, y, r); c.arcTo(x, y, x + w, y, r); c.closePath(); }
+  function cardCanvas(done, R0, date) {
+    var S = 2, W = 360, P = 16, FF = "'Pretendard','Noto Sans KR','Apple SD Gothic Neo','Malgun Gothic',sans-serif";
+    var font = function (c, sz, w) { c.font = w + ' ' + sz + 'px ' + FF; };
+    var rt = ruleTiles(R0), blocks = done.blocks || [], etc = (done.etc || []).filter(Boolean);
+    var m0 = document.createElement('canvas').getContext('2d'); font(m0, 15, 600);
+    var wrap = function (names, maxW) { var out = [], cur = ''; names.forEach(function (n) { var t = cur ? cur + ' · ' + n : n; if (cur && m0.measureText(t).width > maxW) { out.push(cur); cur = n; } else cur = t; }); if (cur) out.push(cur); return out.length ? out : ['']; };
+    var bl = blocks.map(function (b) { return { b: b, lines: wrap(b.maids.map(function (m) { return m.name; }), W - 2 * P - 34) }; });
+    var y0 = 104, tileTop = y0 + 42, tileH = 80, noteY = tileTop + tileH + 22, sec2 = noteY + (rt.none ? 34 : 12);
+    var cardsTop = sec2 + 14, ch = function (x) { return 44 + x.lines.length * 21; };
+    var H = cardsTop + bl.reduce(function (s, x) { return s + ch(x) + 8; }, 0) + (etc.length ? 26 : 0) + 10;
+    var cv = document.createElement('canvas'); cv.width = W * S; cv.height = H * S;
+    var c = cv.getContext('2d'); c.scale(S, S); c.textBaseline = 'alphabetic';
+    c.fillStyle = '#fff'; c.fillRect(0, 0, W, H);
+    c.fillStyle = '#10233F'; c.fillRect(0, 0, W, 100); c.fillStyle = '#C9A961'; c.fillRect(0, 100, W, 4);
+    var d = new Date(date + 'T00:00:00+09:00'), wd = WD[new Date(Date.UTC(+date.slice(0, 4), +date.slice(5, 7) - 1, +date.slice(8))).getUTCDay()];
+    c.textAlign = 'left';
+    font(c, 14, 700); c.fillStyle = '#C9A961'; c.fillText('한화리조트 해운대 · 객실관리', P + 2, 28);
+    font(c, 26, 800); c.fillStyle = '#fff'; c.fillText(Number(date.slice(5, 7)) + '월 ' + Number(date.slice(8)) + '일 (' + wd + ') 더티 지원', P + 2, 62);
+    font(c, 15, 600); c.fillStyle = '#C9D3E3'; c.fillText('정비보조 ' + blocks.length + '명 · 더티 총 ' + (done.total || blocks.reduce(function (s, b) { return s + Number(b.dirty || 0); }, 0)) + '실', P + 2, 88);
+    font(c, 16, 800); c.fillStyle = '#10233F'; c.fillText('내 정비수 → 더티 지원', P, y0 + 30);
+    var n = Math.max(rt.tiles.length, 1), gap = 6, tw = (W - 2 * P - gap * (n - 1)) / n, pal = ['#10233F', '#24406B', '#3B5C8C', '#DCE4F0', '#EEF2F8', '#F3F5F9', '#F6F8FB'];
+    rt.tiles.forEach(function (t, i) {
+      var x = P + i * (tw + gap), dark = i < 3, big = n > 6 ? 24 : 30;
+      c.fillStyle = pal[Math.min(i, pal.length - 1)]; rr(c, x, tileTop, tw, tileH, 12); c.fill();
+      c.textAlign = 'center';
+      font(c, n > 6 ? 12 : 14, 700); c.fillStyle = dark ? '#E6C77A' : '#3B4A5E'; c.fillText(t.k, x + tw / 2, tileTop + 21);
+      font(c, big, 800); c.fillStyle = dark ? '#fff' : '#10233F'; c.fillText(String(t.v), x + tw / 2, tileTop + 54);
+      font(c, 13, 600); c.fillStyle = dark ? '#C9D3E3' : '#3B4A5E'; c.fillText('실', x + tw / 2, tileTop + 72);
+    });
+    c.textAlign = 'left';
+    if (!rt.tiles.length) { font(c, 15, 700); c.fillStyle = '#5F6B7A'; c.fillText('더티 지원 기준이 비어 있어요', P, tileTop + 44); }
+    if (rt.none) { font(c, 14, 600); c.fillStyle = '#5F6B7A'; c.fillText(rt.none + '개 이하는 더티 지원 없음', P, noteY); }
+    font(c, 16, 800); c.fillStyle = '#10233F'; c.fillText('오늘 정비보조 담당', P, sec2);
+    var y = cardsTop;
+    bl.forEach(function (x) {
+      var h = ch(x), col = x.b.color || '#1F5FA8';
+      c.strokeStyle = '#E2E6EC'; c.lineWidth = 1; rr(c, P + 0.5, y + 0.5, W - 2 * P - 1, h - 1, 12); c.stroke();
+      c.fillStyle = col; rr(c, P + 10, y + 10, 7, h - 20, 3.5); c.fill();
+      font(c, 18, 800); c.fillStyle = '#14213D'; c.fillText(x.b.name, P + 28, y + 28);
+      var nw = c.measureText(x.b.name).width; font(c, 16, 700); c.fillStyle = col; c.fillText(String(x.b.dirty) + '실', P + 28 + nw + 8, y + 28);
+      font(c, 15, 600); c.fillStyle = '#3B4A5E'; x.lines.forEach(function (l, i) { c.fillText(l, P + 28, y + 50 + i * 21); });
+      y += h + 8;
+    });
+    if (etc.length) { font(c, 14, 600); c.fillStyle = '#5F6B7A'; c.fillText('기타 업무: ' + etc.join(', '), P, y + 14); }
+    return cv;
+  }
+  function imgBlob(cv) { return new Promise(function (res) { cv.toBlob(function (b) { res(b); }, 'image/png'); }); }
+  function imgName() { return 'dirty_' + K.date.slice(5).replace('-', '') + '.png'; }
+  function imgSay(t) { var e = document.getElementById('dzimgmsg'); if (e) e.textContent = t; }
+  function imgAct(kind) {
+    var cv = K.card; if (!cv) return;
+    imgBlob(cv).then(function (b) {
+      if (!b) { imgSay('이미지를 만들지 못했어요.'); return; }
+      if (kind === 'imgcopy') {
+        if (!(navigator.clipboard && window.ClipboardItem)) { imgSay('이 브라우저는 이미지 복사가 안 돼요. 저장이나 공유를 써 주세요.'); return; }
+        navigator.clipboard.write([new ClipboardItem({ 'image/png': b })]).then(function () { imgSay('이미지를 복사했어요 ✓ 카톡 창에서 붙여넣기(Ctrl+V) 하세요.'); }, function () { imgSay('복사가 막혔어요. 저장이나 공유를 써 주세요.'); });
+      } else if (kind === 'imgsave') {
+        var u = URL.createObjectURL(b), a = document.createElement('a'); a.href = u; a.download = imgName(); document.body.appendChild(a); a.click(); a.remove(); setTimeout(function () { URL.revokeObjectURL(u); }, 60000);
+        imgSay('이미지를 저장했어요 ✓ (' + imgName() + ')');
+      } else if (kind === 'imgshare') {
+        var f = new File([b], imgName(), { type: 'image/png' });
+        if (navigator.canShare && navigator.canShare({ files: [f] })) navigator.share({ files: [f], title: md(K.date) + ' 더티 지원' }).then(function () { imgSay('공유했어요 ✓'); }, function () {});
+        else imgSay('이 기기는 바로 공유가 안 돼요. 저장한 뒤 카톡에서 사진으로 보내 주세요.');
+      }
+    });
+  }
+  function canShareFiles() { try { return !!(navigator.canShare && navigator.canShare({ files: [new File([new Blob(['x'])], 'x.png', { type: 'image/png' })] })); } catch (e) { return false; } }
   function doneHtml() {
-    var R = K.rule || DEF_RULE, txt = '더티 지원 업무 기준 (정규 A): ' + ruleText(R);
+    var R = K.rule || DEF_RULE, txt = '더티 지원 업무 기준: ' + ruleText(R);
     return '<section class="dz-sec dz-done"><div class="big">✅</div><h3>' + md(K.date) + ' 더티 배분을 올렸어요</h3><p>정비보조 휴대폰에 바로 보여요. 시트 \'배정\' 탭에는 1~2분 안에 들어가요.</p>' +
       '<p class="dz-ok">' + K.done.blocks.map(function (b) { return esc(b.name) + ' ' + b.maids.length + '명·' + b.dirty + '실'; }).join(' / ') + '</p>' +
-      '<h4>룸메이드 공지방에 보낼 기준</h4><textarea readonly rows="3">' + esc(txt) + '</textarea><button class="dz-go" data-dz="copy">기준 복사하기</button>' +
+      '<h4>룸메이드 공지방에 보낼 안내</h4><div class="dz-card"><img id="dzimg" alt="더티 지원 안내 이미지"></div>' +
+      '<div class="dz-imgbtns"><button class="dz-go" data-dz="imgcopy">이미지 복사</button><button class="dz-go sec" data-dz="imgsave">이미지 저장</button>' + (canShareFiles() ? '<button class="dz-go sec" data-dz="imgshare">카톡 등으로 공유</button>' : '') + '</div><p class="dz-tip" id="dzimgmsg">PC 카톡: 이미지 복사 → 대화창에 Ctrl+V · 휴대폰: 공유 또는 저장</p>' +
+      '<details class="dz-txt"><summary>글자로 보내기</summary><textarea readonly rows="3">' + esc(txt) + '</textarea><button class="dz-go sec" data-dz="copy">기준 글자 복사</button></details>' +
       '<button class="dz-link" data-dz="close" style="margin-top:14px">닫기</button></section>';
   }
 
@@ -250,7 +333,7 @@
     var meta = { workers: workers(), etc: etcs(), over: K.over, move: K.move, memo: memo, rule: K.rule, file: String(K.file).slice(0, 80), sheet: K.sheet };
     A.savePlan(K.date, r.plan, meta).then(function () {
       if (!K) return;
-      K.saving = false; K.done = r; draw();
+      K.saving = false; K.done = r; K.card = null; draw();
       try { if (typeof refresh === 'function') refresh(true); } catch (e) {}
     }, function (e) {
       if (!K) return;
@@ -290,6 +373,7 @@
     if (a === 'ruletoggle') { K.ruleOpen = !K.ruleOpen; draw(); return; }
     if (a === 'reset') { K.over = {}; K.move = {}; draw(); return; }
     if (a === 'save') { save(); return; }
+    if (a === 'imgcopy' || a === 'imgsave' || a === 'imgshare') { imgAct(a); return; }
     if (a === 'copy') {
       var ta = document.querySelector('.dz textarea');
       var ok = function () { t.textContent = '복사했어요 ✓'; };
@@ -331,6 +415,9 @@
     '.dz-open{margin:0 0 12px}.dz-open button{width:100%;display:flex;flex-direction:column;align-items:flex-start;gap:2px;padding:14px 16px;border:0;border-radius:16px;background:var(--brand,#9A4708);color:#fff;font:inherit;text-align:left;box-shadow:var(--shadow,0 2px 10px rgba(0,0,0,.08));cursor:pointer}',
     '.dz-open b{font-size:17px}.dz-open small{opacity:.85;font-size:12.5px}',
     'body.dz-lock{overflow:hidden}',
+    '.dz-card{margin:8px 0 10px;border-radius:14px;overflow:hidden;box-shadow:0 2px 10px rgba(0,0,0,.08);max-width:380px}.dz-card img{display:block;width:100%;height:auto}',
+    '.dz-imgbtns{display:flex;flex-wrap:wrap;gap:8px}.dz-imgbtns .dz-go{flex:1;min-width:120px;margin:0}.dz-go.sec{background:#fff;color:var(--navy,#10233F);border:1.5px solid var(--line,#d6dbe3)}',
+    '.dz-txt{margin-top:12px}.dz-txt summary{cursor:pointer;font-weight:700;color:var(--muted,#5F6B7A);padding:6px 0}',
     '.dz{position:fixed;inset:0;z-index:50;background:var(--bg,#F6F4F1);overflow-y:auto;-webkit-overflow-scrolling:touch}',
     '.dz-in{max-width:720px;margin:0 auto;padding:calc(10px + env(safe-area-inset-top)) 16px 120px}',
     '.dz-head{display:flex;align-items:center;justify-content:space-between;padding:6px 0 10px}.dz-head h2{margin:0;font-size:20px;color:var(--ink,#1C1712)}',

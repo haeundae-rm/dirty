@@ -34,7 +34,7 @@ execFileSync('python3', [path.join(__dirname, 'make_report.py'), path.join(__dir
 const dataOf = (cards, rooms) => ({ cards: cards.map(([name, unit]) => ({ name, unit: String(unit) })), rooms: rooms.map(([room, name]) => ({ room, name })) });
 
 async function phone(browser, db, name) {
-  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true, locale: 'ko-KR', timezoneId: 'Asia/Seoul' });
+  const ctx = await browser.newContext({ acceptDownloads: true, viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true, locale: 'ko-KR', timezoneId: 'Asia/Seoul' });
   await ctx.exposeBinding('__db', (src, op, a) => db.handle(src.page, op, a));
   await ctx.route('**/*', async route => {
     const u = route.request().url();
@@ -143,7 +143,15 @@ const chip = (p, n) => p.locator('.dz [data-dz="who"][data-v="' + n + '"]');
   ok(doc && doc.meta && doc.meta.memo && doc.meta.memo['사롤'] === '단체 침구', '비고도 같이 저장');
   ok(doc && doc.meta && doc.meta.workers.join() === W1.join() && doc.meta.etc.join() === '사롤' && doc.meta.over[firstMaid] === 3, '고른 명단·예외도 같이 저장 (다시 만들 때 불러옴)');
   if (process.env.SHOT) await pM.screenshot({ path: process.env.SHOT + '/dist3.png' });
-  ok(/더티 지원 업무 기준 \(정규 A\): 정비수 14개 이상 11실/.test(await pM.inputValue('.dz textarea')), '룸메이드 공지방용 기준 문구');
+  ok(/^더티 지원 업무 기준: 정비수 14개 이상 11실/.test(await pM.inputValue('.dz textarea')), '룸메이드 공지방용 기준 문구 (정규 A 글자 없음)');
+  ok(await until(async () => (await pM.evaluate(() => { const i = document.getElementById('dzimg'); return i && i.complete && i.naturalWidth; })) === 720), '전파 이미지 (2배 해상도 720px)');
+  const ih = await pM.evaluate(() => document.getElementById('dzimg').naturalHeight);
+  await pM.locator('#dzimg').screenshot({ path: '/tmp/dz_card.png' }).catch(() => {});
+  fs.writeFileSync('/tmp/dz_card_full.png', Buffer.from((await pM.evaluate(() => document.getElementById('dzimg').src)).split(',')[1], 'base64'));
+  ok(ih > 600, '이미지 높이 ' + ih + 'px (기준표 + 담당 ' + (await pM.evaluate(() => SupDist._K().done.blocks.length)) + '명)');
+  ok(await pM.locator('.dz [data-dz="imgcopy"]').count() === 1 && await pM.locator('.dz [data-dz="imgsave"]').count() === 1, '이미지 복사 · 저장 버튼');
+  const [dl] = await Promise.all([pM.waitForEvent('download'), pM.click('.dz [data-dz="imgsave"]')]);
+  ok(/^dirty_\d{4}\.png$/.test(dl.suggestedFilename()), '이미지 저장 → ' + dl.suggestedFilename());
   const niraMaids = want.filter(x => x.w === '니라기').map(x => x.m);
   ok(await until(async () => (await pW.locator('.maid .nm').count()) === niraMaids.length && /남은 더티/.test(await txt(pW, '.sum')), 6000), '니라기 휴대폰에 담당 메이드 ' + niraMaids.length + '명 바로');
   await pM.click('.dz [data-dz="close"]');

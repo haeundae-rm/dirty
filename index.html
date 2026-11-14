@@ -235,7 +235,7 @@ main{padding:16px 16px 48px;max-width:760px;margin:0 auto;display:flex;flex-dire
 @media (prefers-reduced-motion:reduce){.confetti{display:none}.thanks div{animation:none}}
 @media (rm-light-only){.stat .big,.sum .left .n,.floor{color:color-mix(in srgb,var(--wc) 55%,#fff)}}
 </style>
-<link rel="stylesheet" href="aplus.css?v=2026.11.13-1">
+<link rel="stylesheet" href="aplus.css?v=2026.11.14-1">
 </head>
 <body>
 <header class="top">
@@ -246,9 +246,9 @@ main{padding:16px 16px 48px;max-width:760px;margin:0 auto;display:flex;flex-dire
 </header>
 <main id="main"><div class="notice"><strong>오늘 배정을 불러오고 있어요.</strong></div></main>
 <div id="sheet"></div>
-<script src="server.js?v=2026.11.13-1"></script>
-<script src="act.js?v=2026.11.13-1"></script>
-<script src="shim.js?v=2026.11.13-1"></script>
+<script src="server.js?v=2026.11.14-1"></script>
+<script src="act.js?v=2026.11.14-1"></script>
+<script src="shim.js?v=2026.11.14-1"></script>
 <script>
 var plan = null, checks = {}, tab = null, dlg = null, busyChg = false, pver = 0;  // pver: 담당 변경 횟수. 변경 전에 출발한 응답의 담당 정보는 버림
 var openCards = {}, openSecs = {};
@@ -1569,9 +1569,9 @@ setInterval(function(){ if (document.visibilityState === 'visible') refresh(); }
 </script>
 
 <script>SupShim.post();</script>
-<script src="distcalc.js?v=2026.11.13-1"></script>
-<script src="dist.js?v=2026.11.13-1"></script>
-<script src="staff.js?v=2026.11.13-1"></script>
+<script src="distcalc.js?v=2026.11.14-1"></script>
+<script src="dist.js?v=2026.11.14-1"></script>
+<script src="staff.js?v=2026.11.14-1"></script>
 <script>
 /* 정비보조 명단 (2026-11-12): 직원 명단(staff, 직종 '정비보조')을 관리자가 관리 → 저장할 때 근무자 이름 고르기 목록(sup_meta/roster)도 맞춤
    재직·입사 진행 = 이름 목록에 넣음, 퇴사 = 이름 목록에서 뺌. 최근 근무했는데 명단에 없는 이름은 눌러서 추가 */
@@ -1643,6 +1643,6 @@ setInterval(function(){ if (document.visibilityState === 'visible') refresh(); }
   } catch (e) {}
 })();
 </script>
-<script type="module" src="boot.js?v=2026.11.13-1"></script>
+<script type="module" src="boot.js?v=2026.11.14-1"></script>
 </body>
 </html>
