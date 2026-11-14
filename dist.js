@@ -58,7 +58,7 @@
     if (!A || !A.isAdmin()) { alert('관리자 모드에서만 쓸 수 있어요.'); return; }
     var day = A.today();
     K = { date: day, file: '', data: null, sheet: '', sum: null, err: '', busy: false, saving: false,
-          pick: {}, order: [], rule: null, memo: {}, over: {}, move: {}, res: null, ruleOpen: false, done: null, extra: '' };
+          pick: {}, order: [], rule: null, memo: {}, over: {}, move: {}, res: null, ruleOpen: false, done: null, extra: '', renamed: {} };
     var box = document.createElement('div');
     box.className = 'dz'; box.id = 'dz';
     document.body.appendChild(box);
@@ -103,8 +103,9 @@
       (prev.meta.etc || []).forEach(function (n) { if (!K.pick[n]) { K.pick[n] = 'e'; K.order.push(n); } });
       K.over = prev.meta.over || {}; K.move = prev.meta.move || {}; K.memo = prev.meta.memo || {};
     }
+    var gone = (prev && prev.meta && prev.meta.renamed) || {};   // 이름을 고친 분의 예전 이름은 출근 기록에 남아 있어도 다시 안 넣음
     if (K.date === A.today()) Object.keys(att).forEach(function (n) {
-      var a = att[n]; if (!a || !a.in || a.out || K.pick[n]) return;
+      var a = att[n]; if (!a || !a.in || a.out || K.pick[n] || gone[n]) return;
       K.pick[n] = a.task === '기타 업무' ? 'e' : 'd'; K.order.push(n);
     });
   }
@@ -117,6 +118,19 @@
     (p.known || []).forEach(add);
     A.knownNames().forEach(add);
     return out;
+  }
+  // 한 글자만 다른 같은 길이 이름 (예: 정명애 → 정명예) — 오타 고치기 후보
+  function oneOff(a, b) {
+    a = String(a); b = String(b); if (a === b || a.length !== b.length || a.length < 2) return false;
+    var d = 0; for (var i = 0; i < a.length; i++) if (a[i] !== b[i]) d++;
+    return d === 1;
+  }
+  function renameWorker(o, n) {
+    var i = K.order.indexOf(o); if (i < 0) return;
+    K.order[i] = n; K.pick[n] = K.pick[o]; delete K.pick[o];
+    if (K.memo[o] != null) { K.memo[n] = K.memo[o]; delete K.memo[o]; }
+    Object.keys(K.move).forEach(function (m) { if (K.move[m] === o) K.move[m] = n; });
+    K.renamed[o] = n;
   }
   function workers() { return K.order.filter(function (n) { return K.pick[n] === 'd'; }); }
   function etcs() { return K.order.filter(function (n) { return K.pick[n] === 'e'; }); }
@@ -144,14 +158,15 @@
     var h = '<div class="dz-in"><div class="dz-head"><h2>더티 배분 만들기</h2><button class="dz-x" data-dz="close" aria-label="닫기">✕</button></div>';
     if (K.done) {
       box.innerHTML = h + doneHtml() + '</div>';
-      try { if (!K.card) K.card = cardCanvas(K.done, K.rule || DEF_RULE, K.date); var im = document.getElementById('dzimg'); if (im) im.src = K.card.toDataURL('image/png'); } catch (e) { var mm = document.getElementById('dzimgmsg'); if (mm) mm.textContent = '이미지를 그리지 못했어요: ' + (e && e.message || e); }
+      try { if (!K.card) K.card = cardCanvas(K.done, (K.reshow && K.doneRule) || K.rule || DEF_RULE, K.date); var im = document.getElementById('dzimg'); if (im) im.src = K.card.toDataURL('image/png'); } catch (e) { var mm = document.getElementById('dzimgmsg'); if (mm) mm.textContent = '이미지를 그리지 못했어요: ' + (e && e.message || e); }
       return;
     }
     if (K.src && K.res && K.res.blocks && K.res.blocks.length) h += '<p class="dz-ready">✅ 배분안이 준비됐어요 — 레포트 앱 정비보고서 + ' + (K.date === t ? '출근 체크' : '지난 확정 명단') + '로 채웠어요. 아래 정비보조·미리보기를 확인하고 <b>확정</b>만 누르세요.</p>';
     // 1 날짜
     h += '<section class="dz-sec"><h3><i>1</i>날짜</h3><div class="dz-seg">' +
       [[t, '오늘'], [tm, '내일']].map(function (x) { return '<button data-dz="date" data-v="' + x[0] + '" aria-pressed="' + (K.date === x[0]) + '">' + x[1] + ' ' + md(x[0]) + '</button>'; }).join('') + '</div>' +
-      (A.planDoc(K.date) ? '<p class="dz-warn">이 날짜에 이미 배정이 있어요. 확정하면 새 배정으로 바뀌어요 (이미 체크한 객실 실적은 그대로).</p>' : '') + '</section>';
+      (A.planDoc(K.date) ? '<p class="dz-warn">이 날짜에 이미 배정이 있어요. 확정하면 새 배정으로 바뀌어요 (이미 체크한 객실 실적은 그대로).</p>' +
+        (savedDone(A.planDoc(K.date)) ? '<button class="dz-go sec dz-reshow" data-dz="reshow">🖼 ' + md(K.date) + ' 확정한 안내 카드 다시 보기</button>' : '') : '') + '</section>';
     // 2 파일
     h += '<section class="dz-sec"><h3><i>2</i>정비보고서</h3>' +
       (K.src && K.data ? '<p class="dz-ok">📱 레포트 앱에서 올린 정비보고서를 불러왔어요<br><small>' + esc(K.file) + (hhmm(K.src.at) ? ' · ' + hhmm(K.src.at) + ' 올림' : '') + (K.src.who ? ' · ' + esc(K.src.who) : '') + '</small></p>' +
@@ -297,13 +312,30 @@
     });
   }
   function canShareFiles() { try { return !!(navigator.canShare && navigator.canShare({ files: [new File([new Blob(['x'])], 'x.png', { type: 'image/png' })] })); } catch (e) { return false; } }
+  // 저장된 배정(sup/{날짜}.plan) → 카드용 { blocks, etc, total } (11/14: '다시 보기')
+  function savedDone(doc) {
+    if (!doc || !Array.isArray(doc.plan)) return null;
+    var blocks = [], by = {}, etc = [];
+    doc.plan.forEach(function (x) {
+      if (!x || !x.w) return;
+      if (!x.m) { if (etc.indexOf(x.w) < 0) etc.push(x.w); return; }
+      if (!(Number(x.n) > 0)) return;
+      var b = by[x.w]; if (!b) { b = by[x.w] = { name: x.w, color: x.c || '', maids: [], dirty: 0 }; blocks.push(b); }
+      b.maids.push({ name: x.m }); b.dirty += Number(x.n) || 0;
+    });
+    if (!blocks.length) return null;
+    blocks.forEach(function (b, i) { b.dirty = Math.round(b.dirty * 2) / 2; if (!b.color) b.color = SupDistCalc.PALETTE[i % SupDistCalc.PALETTE.length]; });
+    return { blocks: blocks, etc: etc, total: Math.round(blocks.reduce(function (s, b) { return s + b.dirty; }, 0) * 2) / 2 };
+  }
   function doneHtml() {
     var R = K.rule || DEF_RULE, txt = '더티 지원 업무 기준: ' + ruleText(R);
-    return '<section class="dz-sec dz-done"><div class="big">✅</div><h3>' + md(K.date) + ' 더티 배분을 올렸어요</h3><p>정비보조 휴대폰에 바로 보여요. 시트 \'배정\' 탭에는 1~2분 안에 들어가요.</p>' +
+    return '<section class="dz-sec dz-done">' + (K.reshow ? '<h3>' + md(K.date) + ' 확정한 더티 배분</h3><p>마지막으로 확정한 배정 그대로예요 (그 뒤 넘겨받기 등은 안 들어가요).</p>' :
+      '<div class="big">✅</div><h3>' + md(K.date) + ' 더티 배분을 올렸어요</h3><p>정비보조 휴대폰에 바로 보여요. 시트 \'배정\' 탭에는 1~2분 안에 들어가요.</p>') +
       '<p class="dz-ok">' + K.done.blocks.map(function (b) { return esc(b.name) + ' ' + b.maids.length + '명·' + b.dirty + '실'; }).join(' / ') + '</p>' +
       '<h4>룸메이드 공지방에 보낼 안내</h4><div class="dz-card"><img id="dzimg" alt="더티 지원 안내 이미지"></div>' +
       '<div class="dz-imgbtns"><button class="dz-go" data-dz="imgcopy">이미지 복사</button><button class="dz-go sec" data-dz="imgsave">이미지 저장</button>' + (canShareFiles() ? '<button class="dz-go sec" data-dz="imgshare">카톡 등으로 공유</button>' : '') + '</div><p class="dz-tip" id="dzimgmsg">PC 카톡: 이미지 복사 → 대화창에 Ctrl+V · 휴대폰: 공유 또는 저장</p>' +
       '<details class="dz-txt"><summary>글자로 보내기</summary><textarea readonly rows="3">' + esc(txt) + '</textarea><button class="dz-go sec" data-dz="copy">기준 글자 복사</button></details>' +
+      (K.reshow ? '<button class="dz-go sec" data-dz="back" style="margin-top:14px">← 배분 화면으로</button>' : '') +
       '<button class="dz-link" data-dz="close" style="margin-top:14px">닫기</button></section>';
   }
 
@@ -330,10 +362,11 @@
     if (prev && !confirm(md(K.date) + ' 배정이 이미 있어요. 새 배정으로 바꿀까요?\n\n· 이미 체크한 객실 실적은 그대로 남아요\n· 넘겨받기·가져오기 같은 담당 변경은 새 배정부터 다시 시작해요')) return;
     K.saving = true; draw();
     var memo = {}; etcs().forEach(function (n) { if (K.memo[n]) memo[n] = String(K.memo[n]).slice(0, 30); });
-    var meta = { workers: workers(), etc: etcs(), over: K.over, move: K.move, memo: memo, rule: K.rule, file: String(K.file).slice(0, 80), sheet: K.sheet };
+    var ren = Object.assign({}, (A.planDoc(K.date) && A.planDoc(K.date).meta && A.planDoc(K.date).meta.renamed) || {}, K.renamed);
+    var meta = { workers: workers(), etc: etcs(), over: K.over, move: K.move, memo: memo, rule: K.rule, renamed: ren, file: String(K.file).slice(0, 80), sheet: K.sheet };
     A.savePlan(K.date, r.plan, meta).then(function () {
       if (!K) return;
-      K.saving = false; K.done = r; K.card = null; draw();
+      K.saving = false; K.done = r; K.reshow = false; K.card = null; draw();
       try { if (typeof refresh === 'function') refresh(true); } catch (e) {}
     }, function (e) {
       if (!K) return;
@@ -367,9 +400,18 @@
     if (a === 'addname') {
       var inp = document.querySelector('.dz [data-dz="newname"]'), n = String(inp && inp.value || '').replace(/\s+/g, ' ').trim().slice(0, 20);
       if (!n) return;
-      K.extra = ''; if (!K.pick[n]) { K.pick[n] = 'd'; if (K.order.indexOf(n) < 0) K.order.push(n); }
+      K.extra = '';
+      var near = K.pick[n] ? null : K.order.filter(function (o) { return K.pick[o] && oneOff(o, n); })[0];
+      if (near && confirm(near + ' 님 이름을 ' + n + '(으)로 고칠까요?\n\n· 순서·비고·옮기기는 그대로 두고 이름만 바꿔요\n· [취소]를 누르면 새 사람으로 따로 추가해요')) renameWorker(near, n);
+      else if (!K.pick[n]) { K.pick[n] = 'd'; if (K.order.indexOf(n) < 0) K.order.push(n); }
       draw(); return;
     }
+    if (a === 'reshow') {
+      var pd = api().planDoc(K.date), sd = savedDone(pd); if (!sd) return;
+      K.done = sd; K.reshow = true; K.card = null; K.doneRule = pd.meta && pd.meta.rule;
+      draw(); var bx = document.getElementById('dz'); if (bx) bx.scrollTop = 0; return;
+    }
+    if (a === 'back') { K.done = null; K.reshow = false; K.card = null; K.doneRule = null; draw(); return; }
     if (a === 'ruletoggle') { K.ruleOpen = !K.ruleOpen; draw(); return; }
     if (a === 'reset') { K.over = {}; K.move = {}; draw(); return; }
     if (a === 'save') { save(); return; }

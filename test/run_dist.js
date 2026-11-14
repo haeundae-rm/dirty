@@ -170,6 +170,21 @@ const chip = (p, n) => p.locator('.dz [data-dz="who"][data-v="' + n + '"]');
   await pM.click('[data-dist]');
   ok(await until(async () => (await chip(pM, '이나현').getAttribute('class')) === 'd'), '다시 열면 지난 확정 명단 그대로 (이나현 더티)');
   ok(/이미 배정이 있어요/.test(await txt(pM, '.dz')), '이미 배정 있음 안내');
+  // 11/14 확정한 안내 카드 다시 보기
+  ok(await pM.locator('.dz [data-dz="reshow"]').count() === 1, '다시 만들기 화면에 "확정한 안내 카드 다시 보기" 버튼');
+  await pM.click('.dz [data-dz="reshow"]');
+  ok(await until(async () => /확정한 더티 배분/.test(await txt(pM, '.dz')) && (await pM.evaluate(() => { const i = document.getElementById('dzimg'); return i && i.complete && i.naturalWidth; })) === 720), '다시 보기 → 확정 카드 이미지');
+  ok(await pM.evaluate(w => JSON.stringify(SupDist._K().done.blocks.map(b => [b.name, b.maids.length, b.dirty])) === JSON.stringify(w), want.reduce((a, x) => { if (!x.w || !x.m || !(x.n > 0)) return a; let b = a.find(y => y[0] === x.w); if (!b) a.push(b = [x.w, 0, 0]); b[1]++; b[2] += x.n; return a; }, [])), '다시 보기 카드 = 저장된 배정 (담당·메이드 수·실)');
+  await pM.click('.dz [data-dz="back"]');
+  ok(await until(async () => (await pM.locator('.dz [data-dz="save"]').count()) === 1), '← 배분 화면으로 돌아감');
+  // 11/14 이름 오타 고치기 (한 글자 다름 → 확인 창 → 순서 그대로 이름만)
+  const ord0 = await pM.evaluate(() => SupDist._K().order.slice());
+  await pM.fill('.dz [data-dz="newname"]', '이나연'); await pM.click('.dz [data-dz="addname"]');
+  const ord1 = await pM.evaluate(() => SupDist._K().order.slice());
+  ok(JSON.stringify(ord1) === JSON.stringify(ord0.map(n => n === '이나현' ? '이나연' : n)) && /이름을 이나연/.test(pM.lastDialog || ''), '이나현 → 이나연 고치기: 순서 그대로 (' + ord1.join(',') + ')');
+  await pM.fill('.dz [data-dz="newname"]', '이나현'); await pM.click('.dz [data-dz="addname"]');
+  ok(await pM.evaluate(o => JSON.stringify(SupDist._K().order) === JSON.stringify(o), ord0), '다시 이나현 으로 되돌림');
+  await pM.evaluate(() => { SupDist._K().renamed = {}; });
   await chip(pM, '이나현').click();   // 더티 → 기타
   await pM.setInputFiles('.dz input[type=file]', XLSX);
   await until(async () => (await pM.locator('.dz-b:not(.dz-pool)').count()) === 2, 8000);

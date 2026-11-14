@@ -119,6 +119,16 @@ async function adminIn(p, db) {
   ok(db.docs.get('staff/m2').hired === '2008-04-01' && db.docs.get('staff/m2').job === '룸메이드', '룸메이드 김영희는 그대로');
   ok(await until(() => { const r = db.docs.get('sup_meta/roster'); return r && r.add.indexOf('박보조') >= 0; }), '붙여넣은 분도 이름 목록에');
 
+  console.log('⑤-2 이름 고치기 (박보조 → 박보죠)');
+  await pM.locator('#sb .sb-row', { hasText: '박보조' }).click();
+  await pM.fill('#sb [data-sbf="name"]', '박보죠');
+  await pM.click('#sb [data-sb="esave"]');
+  ok(await until(() => { const r = db.docs.get('sup_meta/roster'); return r && r.add.indexOf('박보죠') >= 0 && r.add.indexOf('박보조') < 0 && r.hide.indexOf('박보조') >= 0; }), '고친 이름은 목록에 · 예전 이름은 빠짐');
+  await pM.locator('#sb .sb-row', { hasText: '박보죠' }).click();
+  await pM.fill('#sb [data-sbf="name"]', '박보조');
+  await pM.click('#sb [data-sb="esave"]');
+  ok(await until(() => { const r = db.docs.get('sup_meta/roster'); return r && r.add.indexOf('박보조') >= 0 && r.hide.indexOf('박보조') < 0 && r.add.indexOf('박보죠') < 0; }), '되돌리면 원래대로');
+
   console.log('⑥ 지우기 · 닫기');
   await pM.locator('#sb .sb-row', { hasText: '최보조' }).click();
   await pM.click('#sb [data-sb="edel"]');
