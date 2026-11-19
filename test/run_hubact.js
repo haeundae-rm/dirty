@@ -56,6 +56,16 @@ async function adminIn(p, db) {
   await sleep(1500);
   ok(!(await p0.evaluate(() => document.documentElement.classList.contains('hubmode'))), 'hubmode 아님');
 
+  console.log('①-2 하우스키퍼 계정으로 관리자 로그인 (2026-11-19)');
+  const pH = await phone(browser, db, '하우스키퍼');
+  await until(async () => (await pH.locator('[data-admin-in]').count()) === 1);
+  await pH.click('[data-admin-in]');
+  ok(await pH.locator('#sheet [data-who="하우스키퍼"]').count() === 1, '로그인 창에 하우스키퍼 선택');
+  await pH.click('[data-who="하우스키퍼"]'); await pH.fill('#pin', db.PW); await pH.click('.panel [data-do]');
+  ok(await until(async () => (await pH.locator('.amode').count()) === 1, 6000), '하우스키퍼로 관리자 모드');
+  await pH.goto(BASE + '?hub=act');
+  ok(await until(async () => /이불장 얼룩 제거/.test(await txt(pH, '#sheet')), 10000), '하우스키퍼도 허브에서 활동판 열림');
+  await pH.context().close();
   console.log('② 관리자 로그인 뒤 ?hub=act → 활동판 바로 열림');
   const pM = await phone(browser, db, '관리자');
   await until(async () => (await pM.locator('[data-admin-in]').count()) === 1);

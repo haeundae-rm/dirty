@@ -1,5 +1,5 @@
 // 시험용 메모리 Firestore (Node) + 규칙 v5 의 정비 지원 부분(sup · sup_meta · acts)을 그대로 옮긴 검사
-const ADMIN = { 'unieshaeundae+admin@gmail.com': 'iw2orXgIgPgTbLUQa0b41XJ9Dvd2', 'unieshaeundae+sub@gmail.com': 'Fz4T5ZzIxShOdVkNpF9gzMmOLED2' };
+const ADMIN = { 'unieshaeundae+admin@gmail.com': 'iw2orXgIgPgTbLUQa0b41XJ9Dvd2', 'unieshaeundae+sub@gmail.com': 'Fz4T5ZzIxShOdVkNpF9gzMmOLED2', 'unieshaeundae+hk@gmail.com': 'nBL2QYezEmRNRmBRMXN6LNPJO2s2' };   // 하우스키퍼: 규칙 v15 isAdmin
 const BOT = 'wytSL9o4vvN4U2G3z6R64hafC9t2';
 const ADMIN_UIDS = Object.values(ADMIN).concat([BOT]);
 const PW = 'pw1234';

@@ -8,11 +8,11 @@
 // 관리자 확인은 Firebase 로그인(소장·부소장 계정) + 보안 규칙. 화면의 adminTok 은 '관리자 모드' 표시용 값일 뿐
 (function () {
   'use strict';
-  var APP_VER = '2026.11.18-1';
+  var APP_VER = '2026.11.19-1';
   var TZ = 'Asia/Seoul';
   var API_URL = 'https://script.google.com/macros/s/AKfycbyPvhvScAcDfGqyxdK9pvr8vtewfjAkHsbRBiN04GCNbzE4HL_zZHODWPPb4xUHQb0LCw/exec';
-  var ADMINS = { '소장': 'unieshaeundae+admin@gmail.com', '부소장': 'unieshaeundae+sub@gmail.com' };
-  var ADMIN_UIDS = ['iw2orXgIgPgTbLUQa0b41XJ9Dvd2', 'Fz4T5ZzIxShOdVkNpF9gzMmOLED2'];
+  var ADMINS = { '소장': 'unieshaeundae+admin@gmail.com', '부소장': 'unieshaeundae+sub@gmail.com', '하우스키퍼': 'unieshaeundae+hk@gmail.com' };   // 하우스키퍼 = 야간 공용 계정 (2026-11-19, 관리자 화면 같음, 비밀번호 따로)
+  var ADMIN_UIDS = ['iw2orXgIgPgTbLUQa0b41XJ9Dvd2', 'Fz4T5ZzIxShOdVkNpF9gzMmOLED2', 'nBL2QYezEmRNRmBRMXN6LNPJO2s2'];
   var HEAD = {
     '배정': ['날짜', '근무자', '색상', '메이드', '정비층', '더티지원', '배정객실'],
     '체크': ['시각', '날짜', '객실', '메이드', '근무자', '상태', '비고'],
@@ -423,7 +423,7 @@
     status: status,
     adminLogin: function (who, pw) {
       var email = ADMINS[who];
-      if (!email) return Promise.reject(new Error('소장 / 부소장 중에서 골라 주세요.'));
+      if (!email) return Promise.reject(new Error('소장 / 부소장 / 하우스키퍼 중에서 골라 주세요.'));
       return S.store.signInEmail(email, pw).then(function () { lsSet('dust_who', who); return TOKEN; }, function (e) {
         var c = String(e && e.code || '');
         if (/network/.test(c)) throw new Error('인터넷 연결을 확인해 주세요.');
