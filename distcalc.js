@@ -32,8 +32,11 @@
   function cardList(cards) {
     var out = [];
     (cards || []).forEach(function (c) {
-      var u = String(c.unit === null || c.unit === undefined ? '' : c.unit).trim();
-      if (/^\d+(\.\d+)?$/.test(u) && parseFloat(u) > 0) out.push({ name: c.name, unit: parseFloat(u) });
+      // 2026-11-21: 더티 기준은 '실제 배정수'(카드 셋째 줄, 객실 합 수식) 로 봄. 둘째 줄 배정수량을 8·9로 적어 두고
+      //   객실을 10개 넣은 날 더티가 0 으로 나왔음. 실제가 비었거나 0 이면 예전처럼 배정수량.
+      var num = function (x) { var t = String(x === null || x === undefined ? '' : x).trim(); return /^\d+(\.\d+)?$/.test(t) && parseFloat(t) > 0 ? parseFloat(t) : 0; };
+      var u = num(c.actual) || num(c.unit);
+      if (u > 0) out.push({ name: c.name, unit: u });
     });
     return out;
   }
