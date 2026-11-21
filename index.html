@@ -235,7 +235,7 @@ main{padding:16px 16px 48px;max-width:760px;margin:0 auto;display:flex;flex-dire
 @media (prefers-reduced-motion:reduce){.confetti{display:none}.thanks div{animation:none}}
 @media (rm-light-only){.stat .big,.sum .left .n,.floor{color:color-mix(in srgb,var(--wc) 55%,#fff)}}
 </style>
-<link rel="stylesheet" href="aplus.css?v=2026.11.21-2">
+<link rel="stylesheet" href="aplus.css?v=2026.11.21-3">
 </head>
 <body>
 <header class="top">
@@ -246,10 +246,10 @@ main{padding:16px 16px 48px;max-width:760px;margin:0 auto;display:flex;flex-dire
 </header>
 <main id="main"><div class="notice"><strong>오늘 배정을 불러오고 있어요.</strong></div></main>
 <div id="sheet"></div>
-<script src="server.js?v=2026.11.21-2"></script>
-<script src="act.js?v=2026.11.21-2"></script>
-<script src="autosup.js?v=2026.11.21-2"></script>
-<script src="shim.js?v=2026.11.21-2"></script>
+<script src="server.js?v=2026.11.21-3"></script>
+<script src="act.js?v=2026.11.21-3"></script>
+<script src="autosup.js?v=2026.11.21-3"></script>
+<script src="shim.js?v=2026.11.21-3"></script>
 <script>
 var plan = null, checks = {}, tab = null, dlg = null, busyChg = false, pver = 0;  // pver: 담당 변경 횟수. 변경 전에 출발한 응답의 담당 정보는 버림
 var openCards = {}, openSecs = {};
@@ -1584,9 +1584,9 @@ setInterval(function(){ if (document.visibilityState === 'visible') refresh(); }
 </script>
 
 <script>SupShim.post();</script>
-<script src="distcalc.js?v=2026.11.21-2"></script>
-<script src="dist.js?v=2026.11.21-2"></script>
-<script src="staff.js?v=2026.11.21-2"></script>
+<script src="distcalc.js?v=2026.11.21-3"></script>
+<script src="dist.js?v=2026.11.21-3"></script>
+<script src="staff.js?v=2026.11.21-3"></script>
 <script>
 /* 정비보조 명단 (2026-11-12): 직원 명단(staff, 직종 '정비보조')을 관리자가 관리 → 저장할 때 근무자 이름 고르기 목록(sup_meta/roster)도 맞춤
    재직·입사 진행 = 이름 목록에 넣음, 퇴사 = 이름 목록에서 뺌. 최근 근무했는데 명단에 없는 이름은 눌러서 추가 */
@@ -1661,6 +1661,34 @@ setInterval(function(){ if (document.visibilityState === 'visible') refresh(); }
   } catch (e) {}
 })();
 </script>
-<script type="module" src="boot.js?v=2026.11.21-2"></script>
+<script>
+/* 허브 '더티 · 활동'에서 정비보조별 진행 보기·수정 (2026-11-21): 주소에 ?hub=sup 이 있으면 — 관리자 로그인이 확인되면 '관리자' 탭(정비보조별 남은 더티 · 추가 · 근무 종료 · 수량 수정 · 출퇴근)으로 열고,
+   정비보조 이름 탭을 누르면 대신 체크. '관리자 모드 끄기'는 숨김 (허브 창은 허브의 ✕ 로 닫음). 저장된 탭은 안 바꿈. 주소에 ?hub=sup 이 없으면 아무것도 안 함 (정비보조 휴대폰 영향 없음) */
+(function(){
+  try {
+    var m = /[?&]hub=(\w+)/.exec(location.search); if (!m || m[1] !== 'sup') return;
+    var H = document.documentElement; H.classList.add('hubsup', 'hubwait');
+    var st = document.createElement('style'); st.textContent = 'html.hubsup [data-admin-off]{display:none!important}html.hubwait body>header.top,html.hubwait #main{visibility:hidden}'; document.head.appendChild(st);
+    var saved = null; try { saved = localStorage.getItem('dust_tab'); } catch (e) {}
+    var first = true, t0 = Date.now();
+    var iv = setInterval(function(){
+      try {
+        if (adminTok && plan) {
+          if (first) { first = false; if (plan.date && tab !== '관리자') { tab = '관리자'; try { render(); } catch (e) {} } window.scrollTo(0, 0); try { parent.postMessage({ hub: 'supok' }, location.origin); } catch (e) {} }
+          H.classList.remove('hubwait');
+          return;
+        }
+        if (!adminTok) {
+          H.classList.add('hubwait'); first = true;
+          if (Date.now() - t0 > 20000) { t0 = Date.now(); try { parent.postMessage({ hub: 'noadmin' }, location.origin); } catch (e) {} }
+        }
+      } catch (e) {}
+    }, 300);
+    // 허브 창 안에서 탭을 눌러도 이 기기의 저장된 탭(정비보조 본인 휴대폰 화면)은 그대로
+    window.addEventListener('pagehide', function(){ try { if (saved === null) localStorage.removeItem('dust_tab'); else localStorage.setItem('dust_tab', saved); } catch (e) {} });
+  } catch (e) {}
+})();
+</script>
+<script type="module" src="boot.js?v=2026.11.21-3"></script>
 </body>
 </html>
