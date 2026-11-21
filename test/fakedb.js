@@ -54,6 +54,7 @@ function make() {
       return /^a-[0-9a-z]{1,10}$/.test(p[3]) && isName(d.maid) && ['need', 'under', 'auto'].includes(d.st) && typeof d.unit === 'number' && Number.isInteger(d.n)
         && (d.w === '' || isName(d.w)) && str(d.msg, 120) && isServer(d.at) && d.uid === uid ? '' : 'auto';
     }
+    if (p[0] === 'sup' && p[2] === 'req' && p.length === 4) return isAdmin(uid) ? '' : 'req-maid-only';   // v23: 메이드 더티 요청 (레포트 앱만 씀)
     if (p[0] === 'sup_meta') return isAdmin(uid) ? '' : 'admin-only';
     if (p[0] === 'acts' && p.length === 2) return isAdmin(uid) ? '' : 'admin-only';
     if (p[0] === 'acts' && p[2] === 'marks' && p.length === 4) return isAdmin(uid) ? '' : validMark(uid, p[1], p[3], data);

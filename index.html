@@ -235,7 +235,7 @@ main{padding:16px 16px 48px;max-width:760px;margin:0 auto;display:flex;flex-dire
 @media (prefers-reduced-motion:reduce){.confetti{display:none}.thanks div{animation:none}}
 @media (rm-light-only){.stat .big,.sum .left .n,.floor{color:color-mix(in srgb,var(--wc) 55%,#fff)}}
 </style>
-<link rel="stylesheet" href="aplus.css?v=2026.11.21-3">
+<link rel="stylesheet" href="aplus.css?v=2026.11.21-4">
 </head>
 <body>
 <header class="top">
@@ -246,10 +246,10 @@ main{padding:16px 16px 48px;max-width:760px;margin:0 auto;display:flex;flex-dire
 </header>
 <main id="main"><div class="notice"><strong>오늘 배정을 불러오고 있어요.</strong></div></main>
 <div id="sheet"></div>
-<script src="server.js?v=2026.11.21-3"></script>
-<script src="act.js?v=2026.11.21-3"></script>
-<script src="autosup.js?v=2026.11.21-3"></script>
-<script src="shim.js?v=2026.11.21-3"></script>
+<script src="server.js?v=2026.11.21-4"></script>
+<script src="act.js?v=2026.11.21-4"></script>
+<script src="autosup.js?v=2026.11.21-4"></script>
+<script src="shim.js?v=2026.11.21-4"></script>
 <script>
 var plan = null, checks = {}, tab = null, dlg = null, busyChg = false, pver = 0;  // pver: 담당 변경 횟수. 변경 전에 출발한 응답의 담당 정보는 버림
 var openCards = {}, openSecs = {};
@@ -407,21 +407,24 @@ function attAdminHtml(){
 function roomTile(r, m, viewer){
   var c = checks[r], isNew = m.added && m.added.indexOf(r) >= 0, other = c && c.worker && c.worker !== viewer;
   var sub = c ? hm(c.at) + (other ? ' ' + c.worker : '') : (isNew ? '추가' : '');
-  return '<button class="room'+(c ? ' on' : '')+(other ? ' other' : '')+(isNew ? ' new' : '')+'" data-r="'+esc(r)+'" data-m="'+esc(m.name)+'">'+esc(r)+(sub ? '<small>'+esc(sub)+'</small>' : '')+'</button>';
+  var want = !c && m._want && m._want.indexOf(r) >= 0;
+  if (want) sub = '먼저';
+  return '<button class="room'+(c ? ' on' : '')+(other ? ' other' : '')+(isNew ? ' new' : '')+(want ? ' want' : '')+'" data-r="'+esc(r)+'" data-m="'+esc(m.name)+'">'+esc(r)+(sub ? '<small>'+esc(sub)+'</small>' : '')+'</button>';
 }
 function maidCard(m, w){
   var d = doneOf(m), n = m.dirty, full = isFull(m), over = n > 0 && d > n;
   var cls = n === 0 ? 'idle' : over ? 'full over' : full ? 'full' : d > 0 ? 'prog' : 'idle';
-  var style = ' style="--wc:'+esc(w.color)+'"';
+  var style = ' style="--wc:'+esc(w.color)+'"', q = reqOf(m);
+  m._want = q ? q.rooms : null;
   if (full && !openCards[m.name]) {   // 할당량을 채운 카드는 한 줄로 접기
     return '<section class="maid '+cls+'"'+style+'><button class="fold" data-fold="'+esc(m.name)+'"><span>✓</span><span class="nm">'+esc(m.name)+'</span><span class="floor">'+esc(m.floors)+'</span>'+
-      (m.taken ? '<span class="badge">추가</span>' : '')+'<span class="r">'+(over ? '완료 +'+(d - n) : '완료')+' · '+d+'/'+n+' ▾</span></button></section>';
+      (m.taken ? '<span class="badge">추가</span>' : '')+'<span class="r">'+(q ? '🔔 ' : '')+(over ? '완료 +'+(d - n) : '완료')+' · '+d+'/'+n+' ▾</span></button></section>';
   }
   var big = n === 0 ? '목표 0<small>실</small>' : over ? '완료 +'+(d - n) : full ? '완료 ✓' : (n - d)+'<small>실 남음</small>';
-  var h = '<section class="maid '+cls+'"'+style+'><div class="maid-head"><span class="nm">'+esc(m.name)+'</span><span class="floor">'+esc(m.floors)+'</span>'+
+  var h = '<section class="maid '+cls+(q ? ' asked' : '')+'"'+style+'><div class="maid-head"><span class="nm">'+esc(m.name)+'</span><span class="floor">'+esc(m.floors)+'</span>'+
     (m.taken ? '<span class="badge">'+(autoTaken(m) ? '자동' : '추가')+'</span>' : '')+(full ? '<button class="unfold" data-fold="'+esc(m.name)+'">접기 ▴</button>' : '')+
     '<div class="stat"><span class="big">'+big+'</span><button class="qty" data-edit="'+esc(m.name)+'" title="지원 수량 수정">완료 '+d+' / 목표 '+n+' ✎</button></div></div>'+
-    '<div class="pbar"><i style="width:'+(n ? Math.min(100, d / n * 100) : 0)+'%"></i></div><div class="rooms">';
+    '<div class="pbar"><i style="width:'+(n ? Math.min(100, d / n * 100) : 0)+'%"></i></div>'+(q ? reqHtml(q) : '')+'<div class="rooms">';
   m.rooms.forEach(function(r){ h += roomTile(r, m, w.name); });
   var lastH = m.handoffs && m.handoffs.length ? m.handoffs[m.handoffs.length - 1] : null;
   var hint = (m.taken ? '가져온 담당 · ' : '') + (lastH ? lastH.from + ' 님에게서 넘겨받음 · ' : '') + '배정 객실 '+m.rooms.length+'실 중 지원한 객실을 체크';
@@ -429,6 +432,55 @@ function maidCard(m, w){
     (m.taken ? '<button class="ghost" data-release="'+esc(m.name)+'"'+(busyChg ? ' disabled' : '')+'>'+(busyChg === m.name ? '되돌리는 중…' : '지원 없음으로 되돌리기')+'</button>' : '')+'</div></section>';
   return h;
 }
+// 🔔 메이드 더티 요청 (2026-11-21): 레포트 앱이 sup/{날}/req/{메이드} 에 씀. 요청 뒤에 그 메이드 방을 하나라도 체크하면 저절로 꺼짐
+function reqOf(m){
+  var L = (window.SupShim && SupShim.reqs ? SupShim.reqs() : []).filter(function(q){ return q.at && (q.names || []).indexOf(m.name) >= 0; });
+  if (!L.length) return null;
+  var q = L[0];
+  var came = m.rooms.some(function(r){ var c = checks[r]; return c && Date.parse(c.at) > q.at; });
+  return came ? null : q;
+}
+function reqMins(q){ return Math.max(0, Math.floor((Date.now() - q.at) / 60000)); }
+function reqHtml(q){
+  return '<div class="dreq"><b>🔔 더티 요청 · '+reqMins(q)+'분째 기다림</b><span>'+hm(new Date(q.at).toISOString())+' 요청'+(q.n > 1 ? ' · 오늘 '+q.n+'번째' : '')+
+    (q.rooms.length ? ' · 먼저 할 방 <b>'+esc(q.rooms.join(', '))+'</b>' : ' · 방은 안 골랐어요')+'</span></div>';
+}
+function reqList(){   // 지금 기다리는 요청 (오래된 순)
+  var out = [];
+  plan.workers.forEach(function(w){ w.maids.forEach(function(m){ var q = reqOf(m); if (q && !out.some(function(o){ return o.q === q; })) out.push({ q: q, m: m, w: w }); }); });
+  return out.sort(function(a, b){ return a.q.at - b.q.at; });
+}
+function reqAdminHtml(){
+  var L = reqList(); if (!L.length) return '';
+  return '<p class="sec">🔔 지금 더티 요청 '+L.length+'명</p><div class="card"><ul class="feed">'+L.map(function(x){
+    return '<li><time style="color:#C25A00;font-weight:800">'+reqMins(x.q)+'분</time><span><b>'+esc(x.m.name)+'</b> 님 ('+esc(x.m.floors)+') → '+esc(x.w.name)+' 님'+(x.q.rooms.length ? ' · 먼저 '+esc(x.q.rooms.join(', ')) : '')+'</span></li>';
+  }).join('')+'</ul></div>';
+}
+var dqCtx = null;
+function dqAudio(){ try { if (!dqCtx) { var C = window.AudioContext || window.webkitAudioContext; if (C) dqCtx = new C(); } if (dqCtx && dqCtx.state === 'suspended') dqCtx.resume(); } catch (e) { dqCtx = null; } return dqCtx; }
+document.addEventListener('touchstart', dqAudio, { passive: true, once: true });
+document.addEventListener('click', dqAudio, { once: true });
+function dqBeep(){
+  var c = dqAudio(); if (!c) return;
+  [0, .28, .56].forEach(function(t0, i){ try { var o = c.createOscillator(), g = c.createGain(), t = c.currentTime + t0; o.type = 'square'; o.frequency.setValueAtTime(i === 2 ? 1175 : 880, t);
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.25, t + 0.01); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.22); o.connect(g); g.connect(c.destination); o.start(t); o.stop(t + 0.25); } catch (e) {} });
+}
+// 새 요청이 오면 담당 정비보조 휴대폰만 소리·진동·알림 (같은 요청은 한 번만 — 휴대폰에 기억)
+window.dreqPing = function(){
+  if (!plan || !plan.workers || adminTok || !me) return;
+  var day = plan.date, k = 'dust_dq_' + day, seen = {}; try { seen = JSON.parse(lsGet(k) || '{}') || {}; } catch (e) {}
+  var hit = reqList().filter(function(x){ return x.w.name === me && !seen[x.q.id + '_' + x.q.n]; });
+  if (!hit.length) return;
+  hit.forEach(function(x){ seen[x.q.id + '_' + x.q.n] = 1; }); lsSet(k, JSON.stringify(seen));
+  dqBeep(); buzz([300, 150, 300, 150, 300]);
+  var x = hit[0], o = document.querySelector('.dqpop'); if (o) o.remove();
+  var el = document.createElement('button'); el.className = 'dqpop';
+  el.innerHTML = '<b>🔔 ' + esc(x.m.name) + ' 님 더티 요청' + (hit.length > 1 ? ' 외 ' + (hit.length - 1) + '명' : '') + '</b><span>' + esc(x.m.floors || '') + (x.q.rooms.length ? ' · 먼저 할 방 ' + esc(x.q.rooms.join(', ')) : '') + '</span><i>눌러서 확인</i>';
+  el.onclick = function(){ el.remove(); window.scrollTo(0, 0); var c = document.querySelector('section.maid.asked'); if (c) c.scrollIntoView({ block: 'center', behavior: 'smooth' }); };
+  document.body.appendChild(el);   // 누를 때까지 떠 있음
+  render();
+};
+setInterval(function(){ try { window.dreqPing(); } catch (e) {} }, 15000);
 function autoTaken(m){   // 2026-11-21: 방이 늘어 자동으로 가져온 메이드
   var t = (plan.changes || []).filter(function(c){ return c.maid === m.name && c.kind === '가져옴'; });
   return !!(t.length && t[t.length - 1].from === '자동');
@@ -465,7 +517,8 @@ function renderWorker(w){
   var notes = handedNotes(w);
   if (notes.length) html += '<div class="handed"><div><b>넘겨준 담당</b></div>'+notes.map(function(t){ return '<div>'+t+'</div>'; }).join('')+'</div>';
   if (!w.maids.length && !etcNow) html += '<div class="notice"><strong>아직 담당 메이드가 없어요.</strong><br>아래 "다른 정비보조 담당 넘겨받기"나 "더티 지원 없음"에서 가져오세요.</div>';
-  w.maids.forEach(function(m){ html += maidCard(m, w); });
+  w.maids.map(function(m, i){ var q = reqOf(m); return { m: m, i: i, at: q ? q.at : Infinity }; })   // 🔔 더티 요청한 메이드를 맨 위로 (오래 기다린 순)
+    .sort(function(a, b){ return (a.at - b.at) || (a.i - b.i); }).forEach(function(x){ html += maidCard(x.m, w); });
 
   var others = [];
   active().forEach(function(o){ if (o.name !== w.name) o.maids.forEach(function(m){ if (remOf(m) > 0) others.push({ m: m, o: o }); }); });
@@ -521,7 +574,7 @@ function renderAdmin(){
   var chg = (plan.changes || []).slice().reverse();
   var feed = Object.keys(checks).map(function(k){ return checks[k]; }).sort(function(a, b){ return String(b.at).localeCompare(String(a.at)); }).slice(0, 12);
   $('#main').innerHTML = '<div class="amode"><b>관리자 모드</b><span>근무자 탭에서 객실을 누르면 대신 체크할 수 있어요.</span><button class="ghost" data-admin-off="1">관리자 모드 끄기</button></div><div class="greet"><h2>진행 현황</h2><p>실시간으로 바뀌어요. 기록은 1~2분 안에 구글 시트 \'체크\'·\'변경\'·\'근태\' 탭에도 남아요.<span class="relay"></span></p></div>'+kpi+
-    autoHtml()+attAdminHtml()+'<button class="addw" data-addw="1"'+(busyChg ? ' disabled' : '')+'>+ 정비보조 추가</button><div class="grid">'+cards+'</div>'+
+    reqAdminHtml()+autoHtml()+attAdminHtml()+'<button class="addw" data-addw="1"'+(busyChg ? ' disabled' : '')+'>+ 정비보조 추가</button><div class="grid">'+cards+'</div>'+
     (etcW.length ? '<p class="ended">🧰 기타 업무 중: '+etcW.map(function(w){ var a = attOf(w.name) || {}; return esc(w.name)+(a.memo ? '('+esc(a.memo)+')' : ''); }).join(', ')+'</p>' : '')+
     (ended.length ? '<p class="ended">근무 종료: '+ended.map(function(w){ return esc(w.name)+' (체크 '+doneBy(w.name)+'실)'; }).join(', ')+'</p>' : '')+
     '<p class="sec">오늘 담당 변경 '+chg.length+'건</p><div class="card">'+(chg.length ? '<ul class="feed">'+chg.map(function(c){ return '<li><time>'+hm(c.at)+'</time><span>'+chgText(c)+'</span></li>'; }).join('')+'</ul>' : '<span style="color:var(--muted);font-size:13px">변경된 담당이 없어요.</span>')+'</div>'+
@@ -1584,9 +1637,9 @@ setInterval(function(){ if (document.visibilityState === 'visible') refresh(); }
 </script>
 
 <script>SupShim.post();</script>
-<script src="distcalc.js?v=2026.11.21-3"></script>
-<script src="dist.js?v=2026.11.21-3"></script>
-<script src="staff.js?v=2026.11.21-3"></script>
+<script src="distcalc.js?v=2026.11.21-4"></script>
+<script src="dist.js?v=2026.11.21-4"></script>
+<script src="staff.js?v=2026.11.21-4"></script>
 <script>
 /* 정비보조 명단 (2026-11-12): 직원 명단(staff, 직종 '정비보조')을 관리자가 관리 → 저장할 때 근무자 이름 고르기 목록(sup_meta/roster)도 맞춤
    재직·입사 진행 = 이름 목록에 넣음, 퇴사 = 이름 목록에서 뺌. 최근 근무했는데 명단에 없는 이름은 눌러서 추가 */
@@ -1689,6 +1742,6 @@ setInterval(function(){ if (document.visibilityState === 'visible') refresh(); }
   } catch (e) {}
 })();
 </script>
-<script type="module" src="boot.js?v=2026.11.21-3"></script>
+<script type="module" src="boot.js?v=2026.11.21-4"></script>
 </body>
 </html>
