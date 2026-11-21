@@ -368,7 +368,8 @@
     K.saving = true; draw();
     var memo = {}; etcs().forEach(function (n) { if (K.memo[n]) memo[n] = String(K.memo[n]).slice(0, 30); });
     var ren = Object.assign({}, (A.planDoc(K.date) && A.planDoc(K.date).meta && A.planDoc(K.date).meta.renamed) || {}, K.renamed);
-    var meta = { workers: workers(), etc: etcs(), over: K.over, move: K.move, memo: memo, rule: K.rule, renamed: ren, file: String(K.file).slice(0, 80), sheet: K.sheet };
+    var units = {}; (r.maids || []).forEach(function (m) { if (m.name && !(m.name in units)) units[m.name] = m.unit; });   // 2026-11-21: 아침 유닛 (레포트 방 변경 자동 배정 기준)
+    var meta = { workers: workers(), etc: etcs(), over: K.over, move: K.move, memo: memo, rule: K.rule, renamed: ren, file: String(K.file).slice(0, 80), sheet: K.sheet, units: units };
     A.savePlan(K.date, r.plan, meta).then(function () {
       if (!K) return;
       K.saving = false; K.done = r; K.reshow = false; K.card = null; draw();

@@ -235,7 +235,7 @@ main{padding:16px 16px 48px;max-width:760px;margin:0 auto;display:flex;flex-dire
 @media (prefers-reduced-motion:reduce){.confetti{display:none}.thanks div{animation:none}}
 @media (rm-light-only){.stat .big,.sum .left .n,.floor{color:color-mix(in srgb,var(--wc) 55%,#fff)}}
 </style>
-<link rel="stylesheet" href="aplus.css?v=2026.11.21-1">
+<link rel="stylesheet" href="aplus.css?v=2026.11.21-2">
 </head>
 <body>
 <header class="top">
@@ -246,9 +246,10 @@ main{padding:16px 16px 48px;max-width:760px;margin:0 auto;display:flex;flex-dire
 </header>
 <main id="main"><div class="notice"><strong>오늘 배정을 불러오고 있어요.</strong></div></main>
 <div id="sheet"></div>
-<script src="server.js?v=2026.11.21-1"></script>
-<script src="act.js?v=2026.11.21-1"></script>
-<script src="shim.js?v=2026.11.21-1"></script>
+<script src="server.js?v=2026.11.21-2"></script>
+<script src="act.js?v=2026.11.21-2"></script>
+<script src="autosup.js?v=2026.11.21-2"></script>
+<script src="shim.js?v=2026.11.21-2"></script>
 <script>
 var plan = null, checks = {}, tab = null, dlg = null, busyChg = false, pver = 0;  // pver: 담당 변경 횟수. 변경 전에 출발한 응답의 담당 정보는 버림
 var openCards = {}, openSecs = {};
@@ -418,7 +419,7 @@ function maidCard(m, w){
   }
   var big = n === 0 ? '목표 0<small>실</small>' : over ? '완료 +'+(d - n) : full ? '완료 ✓' : (n - d)+'<small>실 남음</small>';
   var h = '<section class="maid '+cls+'"'+style+'><div class="maid-head"><span class="nm">'+esc(m.name)+'</span><span class="floor">'+esc(m.floors)+'</span>'+
-    (m.taken ? '<span class="badge">추가</span>' : '')+(full ? '<button class="unfold" data-fold="'+esc(m.name)+'">접기 ▴</button>' : '')+
+    (m.taken ? '<span class="badge">'+(autoTaken(m) ? '자동' : '추가')+'</span>' : '')+(full ? '<button class="unfold" data-fold="'+esc(m.name)+'">접기 ▴</button>' : '')+
     '<div class="stat"><span class="big">'+big+'</span><button class="qty" data-edit="'+esc(m.name)+'" title="지원 수량 수정">완료 '+d+' / 목표 '+n+' ✎</button></div></div>'+
     '<div class="pbar"><i style="width:'+(n ? Math.min(100, d / n * 100) : 0)+'%"></i></div><div class="rooms">';
   m.rooms.forEach(function(r){ h += roomTile(r, m, w.name); });
@@ -427,6 +428,18 @@ function maidCard(m, w){
   h += '</div><div class="maid-foot"><p class="hint">'+esc(hint)+'</p><button class="ghost" data-edit="'+esc(m.name)+'">수량·객실 수정</button>'+
     (m.taken ? '<button class="ghost" data-release="'+esc(m.name)+'"'+(busyChg ? ' disabled' : '')+'>'+(busyChg === m.name ? '되돌리는 중…' : '지원 없음으로 되돌리기')+'</button>' : '')+'</div></section>';
   return h;
+}
+function autoTaken(m){   // 2026-11-21: 방이 늘어 자동으로 가져온 메이드
+  var t = (plan.changes || []).filter(function(c){ return c.maid === m.name && c.kind === '가져옴'; });
+  return !!(t.length && t[t.length - 1].from === '자동');
+}
+function autoHtml(){   // 관리자: 레포트 앱 방 변경으로 생긴 자동 배정 · 알림
+  var L = (window.SupShim && SupShim.autoAlerts ? SupShim.autoAlerts() : []);
+  if (!L.length) return '';
+  var lab = { need: '⚠ 필요', under: '확인', auto: '자동' };
+  return '<p class="sec">레포트 방 변경 · 자동 배정 '+L.length+'건</p><div class="card"><ul class="feed">'+L.map(function(x){
+    return '<li><time'+(x.st === 'need' ? ' style="color:var(--warn);font-weight:800"' : '')+'>'+esc(lab[x.st] || x.st)+'</time><span><b>'+esc(x.maid)+'</b> 님 · '+esc(x.msg)+'</span></li>';
+  }).join('')+'</ul>'+(L.some(function(x){ return x.st === 'need'; }) ? '<p style="font-size:13px;color:var(--muted);margin:8px 0 0">더티 근무자가 출근하거나 인원을 추가하면 자동으로 붙어요. 지금 붙이려면 근무자 화면에서 가져오기.</p>' : '')+'</div>';
 }
 function handedNotes(w){
   var seen = {}, out = [];
@@ -467,7 +480,8 @@ function renderWorker(w){
   var openP = openSecs.pool !== undefined ? openSecs.pool : (!w.maids.length && !others.length && !etcNow);
   html += '<details class="pool" data-sec="pool"'+(openP ? ' open' : '')+'><summary>더티 지원 없음 '+pool.length+'명<span>방이 늘어 지원이 필요하면 가져오세요</span></summary>'+
     (pool.length ? pool.map(function(m){
-      return '<div class="prow"><div class="who"><b>'+esc(m.name)+'</b><span class="floor">'+esc(m.floors)+'</span><p>'+esc(m.rooms.join(', '))+'</p></div>'+
+      var need = (window.SupShim && SupShim.autoAlerts ? SupShim.autoAlerts() : []).filter(function(x){ return x.maid === m.name && x.st === 'need'; })[0];
+      return '<div class="prow"><div class="who"><b>'+esc(m.name)+'</b><span class="floor">'+esc(m.floors)+'</span><p>'+esc(m.rooms.join(', '))+'</p>'+(need ? '<p style="color:var(--warn);font-weight:800">⚠ '+esc(need.unit)+'유닛 · 더티 '+esc(need.n)+'실 지원 필요</p>' : '')+'</div>'+
         '<button class="take" data-take="'+esc(m.name)+'"'+(busyChg ? ' disabled' : '')+'>'+(busyChg === m.name ? '가져오는 중…' : '가져오기')+'</button></div>';
     }).join('') : '<div class="prow"><span class="owner">모든 메이드가 담당자에게 배정되어 있어요.</span></div>')+'</details>';
   $('#main').innerHTML = html;
@@ -495,7 +509,7 @@ function renderAdmin(){
     var rows = w.maids.map(function(m){
       var d = doneOf(m), n = m.dirty, lastH = m.handoffs && m.handoffs.length ? m.handoffs[m.handoffs.length - 1] : null;
       var right = n === 0 ? '목표 0' : d > n ? '완료 +'+(d - n) : d >= n ? '완료' : (n - d)+'실 남음';
-      return '<div class="'+(n && d > n ? 'ov' : n && d >= n ? 'ok' : '')+'"><span>'+esc(m.name)+' · '+esc(m.floors)+(m.taken ? ' <b style="color:'+esc(w.color)+'">추가</b>' : '')+
+      return '<div class="'+(n && d > n ? 'ov' : n && d >= n ? 'ok' : '')+'"><span>'+esc(m.name)+' · '+esc(m.floors)+(m.taken ? ' <b style="color:'+esc(w.color)+'">'+(autoTaken(m) ? '자동' : '추가')+'</b>' : '')+
         (lastH ? ' <small>('+esc(lastH.from)+'→)</small>' : '')+'</span><span>'+right+'</span></div>';
     }).join('');
     return '<div class="card"><h3><i style="background:'+esc(w.color)+'"></i>'+esc(w.name)+(w.added ? ' <small style="font-weight:500;color:var(--muted)">추가 인원</small>' : '')+'</h3>'+
@@ -507,7 +521,7 @@ function renderAdmin(){
   var chg = (plan.changes || []).slice().reverse();
   var feed = Object.keys(checks).map(function(k){ return checks[k]; }).sort(function(a, b){ return String(b.at).localeCompare(String(a.at)); }).slice(0, 12);
   $('#main').innerHTML = '<div class="amode"><b>관리자 모드</b><span>근무자 탭에서 객실을 누르면 대신 체크할 수 있어요.</span><button class="ghost" data-admin-off="1">관리자 모드 끄기</button></div><div class="greet"><h2>진행 현황</h2><p>실시간으로 바뀌어요. 기록은 1~2분 안에 구글 시트 \'체크\'·\'변경\'·\'근태\' 탭에도 남아요.<span class="relay"></span></p></div>'+kpi+
-    attAdminHtml()+'<button class="addw" data-addw="1"'+(busyChg ? ' disabled' : '')+'>+ 정비보조 추가</button><div class="grid">'+cards+'</div>'+
+    autoHtml()+attAdminHtml()+'<button class="addw" data-addw="1"'+(busyChg ? ' disabled' : '')+'>+ 정비보조 추가</button><div class="grid">'+cards+'</div>'+
     (etcW.length ? '<p class="ended">🧰 기타 업무 중: '+etcW.map(function(w){ var a = attOf(w.name) || {}; return esc(w.name)+(a.memo ? '('+esc(a.memo)+')' : ''); }).join(', ')+'</p>' : '')+
     (ended.length ? '<p class="ended">근무 종료: '+ended.map(function(w){ return esc(w.name)+' (체크 '+doneBy(w.name)+'실)'; }).join(', ')+'</p>' : '')+
     '<p class="sec">오늘 담당 변경 '+chg.length+'건</p><div class="card">'+(chg.length ? '<ul class="feed">'+chg.map(function(c){ return '<li><time>'+hm(c.at)+'</time><span>'+chgText(c)+'</span></li>'; }).join('')+'</ul>' : '<span style="color:var(--muted);font-size:13px">변경된 담당이 없어요.</span>')+'</div>'+
@@ -518,7 +532,8 @@ function chgText(c){
   if (c.kind === '인원추가') return '<b>'+esc(c.worker)+'</b> 님 정비보조로 추가';
   if (c.kind === '근무종료') return '<b>'+esc(c.worker)+'</b> 님 근무 종료';
   if (c.kind === '넘겨받음') return '<b>'+esc(c.worker)+'</b> · '+esc(c.maid)+' 님 담당을 '+esc(c.from || '다른 정비보조')+' 님에게서 넘겨받음';
-  var s = '<b>'+esc(c.worker)+'</b> · '+esc(c.maid)+' 님 ';
+  if (c.from === '레포트') return '📋 레포트 앱 · '+esc(c.maid)+' 님'+(c.rooms && c.rooms.length ? ' 객실 추가 '+esc(c.rooms.join(', ')) : '')+(c.removed && c.removed.length ? ' 객실 빠짐 '+esc(c.removed.join(', ')) : '');
+  var s = (c.from === '자동' ? '🤖 자동 · ' : '')+'<b>'+esc(c.worker)+'</b> · '+esc(c.maid)+' 님 ';
   var hasN = c.dirty !== null && c.dirty !== '' && c.dirty !== undefined;
   if (c.kind === '가져옴') s += '담당으로 가져옴' + (hasN ? ' (지원 '+c.dirty+'실)' : '');
   else if (c.kind === '되돌림') s += '지원 없음으로 되돌림';
@@ -1569,9 +1584,9 @@ setInterval(function(){ if (document.visibilityState === 'visible') refresh(); }
 </script>
 
 <script>SupShim.post();</script>
-<script src="distcalc.js?v=2026.11.21-1"></script>
-<script src="dist.js?v=2026.11.21-1"></script>
-<script src="staff.js?v=2026.11.21-1"></script>
+<script src="distcalc.js?v=2026.11.21-2"></script>
+<script src="dist.js?v=2026.11.21-2"></script>
+<script src="staff.js?v=2026.11.21-2"></script>
 <script>
 /* 정비보조 명단 (2026-11-12): 직원 명단(staff, 직종 '정비보조')을 관리자가 관리 → 저장할 때 근무자 이름 고르기 목록(sup_meta/roster)도 맞춤
    재직·입사 진행 = 이름 목록에 넣음, 퇴사 = 이름 목록에서 뺌. 최근 근무했는데 명단에 없는 이름은 눌러서 추가 */
@@ -1646,6 +1661,6 @@ setInterval(function(){ if (document.visibilityState === 'visible') refresh(); }
   } catch (e) {}
 })();
 </script>
-<script type="module" src="boot.js?v=2026.11.21-1"></script>
+<script type="module" src="boot.js?v=2026.11.21-2"></script>
 </body>
 </html>

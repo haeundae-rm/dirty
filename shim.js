@@ -8,7 +8,7 @@
 // 관리자 확인은 Firebase 로그인(소장·부소장 계정) + 보안 규칙. 화면의 adminTok 은 '관리자 모드' 표시용 값일 뿐
 (function () {
   'use strict';
-  var APP_VER = '2026.11.21-1';
+  var APP_VER = '2026.11.21-2';
   var TZ = 'Asia/Seoul';
   var API_URL = 'https://script.google.com/macros/s/AKfycbyPvhvScAcDfGqyxdK9pvr8vtewfjAkHsbRBiN04GCNbzE4HL_zZHODWPPb4xUHQb0LCw/exec';
   var ADMINS = { '소장': 'unieshaeundae+admin@gmail.com', '부소장': 'unieshaeundae+sub@gmail.com', '하우스키퍼': 'unieshaeundae+hk@gmail.com' };   // 하우스키퍼 = 야간 공용 계정 (2026-11-19, 관리자 화면 같음, 비밀번호 따로)
@@ -26,7 +26,7 @@
 
   var S = {
     store: null, user: null, admin: false, day: '', subs: [],
-    plan: null, planGot: false, rows: [], rowsGot: false, names: null, namesGot: false, relay: null, roster: null,
+    plan: null, planGot: false, rows: [], rowsGot: false, rm: [], rmGot: false, auto: {}, autoGot: false, touched: {}, autoTried: {}, autoTimer: 0, alerts: [], names: null, namesGot: false, relay: null, roster: null,
     pending: 0, fromCache: true, local: [], sheets: null, ready: false, waiting: [], err: '', reports: 0
   };
 
@@ -188,6 +188,16 @@
     // 관리자 앱 '더티 배분 만들기'로 다시 만든 배정(src 'app')이면, 그 전에 생긴 담당 변경(넘겨받음·가져옴·인원추가·근무종료 …)은 새 배정부터 다시 시작
     var issued = S.plan && S.plan.src === 'app' ? num(S.plan.issued) : 0;
     if (issued) all = all.filter(function (x) { return x.tab !== '변경' || x.at >= issued; });
+    // 2026-11-21: 레포트 앱 객실 추가·제외·교환(sup/{날짜}/rm) → '변경' 줄로 (휴대폰 안에서만, 다시 배분해도 계속 적용)
+    S.touched = {};
+    if (window.SupAuto && S.rm.length) {
+      var ck = {};
+      all.forEach(function (x) { if (x.tab === '체크') { var r0 = String(x.row[2] || '').replace(/^'/, ''); if (x.row[5] === '완료') ck[r0] = 1; else if (x.row[5] === '취소') delete ck[r0]; } });
+      var rr = window.SupAuto.rmRows(S.rm, S.day || today(), ck);
+      S.touched = rr.touched;
+      rr.rows.forEach(function (x) { all.push({ id: 'rm:' + x.id, tab: '변경', row: x.row, at: x.at, c: x.at }); });
+      all.sort(function (a, b) { return (a.at - b.at) || (a.c - b.c) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0); });
+    }
     all.forEach(function (x) {
       var r = x.row.map(function (v, i) { if (i === 0) return new Date(x.at || Date.now()); return typeof v === 'string' && v.charAt(0) === "'" ? v.slice(1) : v === null || v === undefined ? '' : v; });
       while (r.length < HEAD[x.tab].length) r.push('');
@@ -228,11 +238,14 @@
   function unsubAll() { S.subs.forEach(function (u) { try { u(); } catch (e) {} }); S.subs = []; }
   function subscribe() {
     unsubAll();
-    S.day = today(); S.planGot = S.rowsGot = S.namesGot = false; S.plan = null; S.rows = [];
+    S.day = today(); S.planGot = S.rowsGot = S.namesGot = false; S.plan = null; S.rows = []; S.rm = []; S.rmGot = S.autoGot = false; S.auto = {}; S.alerts = [];
     S.local = S.local.filter(function (l) { return l.row && l.row[1] === S.day; });
     var st = S.store;
     S.subs.push(st.listenDoc('sup/' + S.day, function (d) { S.plan = d; S.planGot = true; changed(); }, function (e) { subErr('배정', e); }));
     S.subs.push(st.listenQuery('sup/' + S.day + '/rows', [], function (docs, m) { S.rows = docs; S.rowsGot = true; S.fromCache = !!m.fromCache; S.pending = m.pending || 0; changed(); }, function (e) { subErr('기록', e); }));
+    // 2026-11-21: 레포트 앱 객실 변경 · 자동 배정 알림 (규칙 v22 전이면 읽기 거절 → 예전처럼)
+    S.subs.push(st.listenQuery('sup/' + S.day + '/rm', [], function (docs, m) { S.rm = docs; S.rmGot = !m.fromCache; changed(); }, function (e) { S.rmGot = false; console.warn('레포트 변경 읽기 실패 (규칙 v22 전?)', e); }));
+    S.subs.push(st.listenQuery('sup/' + S.day + '/auto', [], function (docs, m) { var o = {}; docs.forEach(function (d) { o[d.id] = d.data; }); S.auto = o; S.autoGot = !m.fromCache; }, function () { S.autoGot = false; }));
     S.subs.push(st.listenDoc('sup_meta/names', function (d) { S.names = d; S.namesGot = true; changed(); }, function (e) { S.namesGot = true; subErr('명단', e); }));
     S.subs.push(st.listenDoc('sup_meta/relay', function (d) { S.relay = d; decorate(); }, function () {}));
     S.subs.push(st.listenDoc('sup_meta/roster', function (d) { S.roster = d || null; changed(); }, function () {}));
@@ -251,6 +264,43 @@
     }
     try { refresh(); } catch (e) {}
     try { if (!busyChg && !(queue && queue.length)) stamp(); } catch (e) {}
+    autoTick();
+  }
+
+  // ---------- 자동 배정 (2026-11-21, autosup.js): 방이 바뀐 메이드 → 기준표대로 가져옴·수량·되돌림 + 알림(sup/{날짜}/auto)
+  function autoTick() {
+    try {
+      if (!window.SupAuto || !S.ready || !S.user || !S.rmGot || S.fromCache || !S.plan || S.day !== today()) return;
+      var st = SERVER.state_(), res = window.SupAuto.decide(st, { date: S.day, plan: S.plan, touched: S.touched, now: Date.now() });
+      var alertsChanged = JSON.stringify(S.alerts) !== JSON.stringify(res.alerts);
+      S.alerts = res.alerts;
+      if (S.autoTimer) clearTimeout(S.autoTimer);
+      S.autoTimer = res.retry ? setTimeout(function () { S.autoTimer = 0; autoTick(); }, res.retry) : 0;
+      var wrote = false;
+      res.actions.forEach(function (a) {
+        if (S.autoTried[a.id]) return;
+        S.autoTried[a.id] = 1;
+        if (S.rows.some(function (d) { return d.id === a.id; })) return;
+        var path = 'sup/' + S.day + '/rows/' + a.id, t = Date.now();
+        var doc = { tab: '변경', row: a.row, at: S.store.SERVER_TIME, clientAt: new Date(t), uid: S.user.uid, by: S.admin ? '관리자' : '본인' };
+        var go = function () {
+          S.local.push({ id: a.id, tab: '변경', row: a.row, at: t, c: t });
+          wrote = true;
+          return S.store.set(path, doc).then(null, function () { S.local.forEach(function (l) { if (l.id === a.id) l.dead = true; }); });   // 다른 휴대폰이 먼저 썼으면 거절 → 그 줄을 씀
+        };
+        if (S.admin) S.store.get(path).then(function (x) { if (!x) { go(); changed(); } }, function () {});   // 관리자는 덮어쓸 수 있어서 먼저 확인
+        else go();
+      });
+      if (S.autoGot) res.alerts.forEach(function (x) {
+        var id = 'a-' + window.SupAuto.hash(x.maid), cur = S.auto[id];
+        if (cur && cur.st === x.st && cur.n === x.n && cur.w === x.w && cur.unit === x.unit) return;
+        var key = id + JSON.stringify(x); if (S.autoTried[key]) return; S.autoTried[key] = 1;
+        S.auto[id] = { maid: x.maid, st: x.st, unit: x.unit, n: x.n, w: x.w, msg: x.msg };
+        S.store.set('sup/' + S.day + '/auto/' + id, { maid: x.maid, st: x.st, unit: x.unit, n: x.n, w: x.w, msg: String(x.msg).slice(0, 120), at: S.store.SERVER_TIME, uid: S.user.uid }).then(null, function () {});
+      });
+      if (wrote) rebuild();
+      if (wrote || alertsChanged) { try { refresh(); } catch (e) {} }
+    } catch (e) { console.warn('자동 배정 계산 실패', e); }
   }
 
   // ---------- google.script.run 흉내
@@ -433,6 +483,7 @@
     },
     adminOff: function () { try { S.store.signOut(); } catch (e) {} },
     _S: S, _server: SERVER, _A: A, _act: ACT,
+    autoAlerts: function () { return (S.alerts || []).slice(); },
     // 관리자 '정비보조 명단' (11/8)
     roster: {
       recent: function () { return ((S.names && S.names.names) || []).slice(); },

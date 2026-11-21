@@ -48,6 +48,12 @@ function make() {
       if (op !== 'create' || docs.has(path)) return isAdmin(uid) ? '' : 'no-update';
       return isAdmin(uid) ? '' : validSupRow(uid, p[1], data);
     }
+    if (p[0] === 'sup' && p[2] === 'rm' && p.length === 4) return isAdmin(uid) ? '' : 'rm-maid-only';   // v22: 메이드 본인(레포트 앱) · 관리자 — 정비보조는 못 씀
+    if (p[0] === 'sup' && p[2] === 'auto' && p.length === 4) {   // v22: 자동 배정 알림
+      const d = data || {};
+      return /^a-[0-9a-z]{1,10}$/.test(p[3]) && isName(d.maid) && ['need', 'under', 'auto'].includes(d.st) && typeof d.unit === 'number' && Number.isInteger(d.n)
+        && (d.w === '' || isName(d.w)) && str(d.msg, 120) && isServer(d.at) && d.uid === uid ? '' : 'auto';
+    }
     if (p[0] === 'sup_meta') return isAdmin(uid) ? '' : 'admin-only';
     if (p[0] === 'acts' && p.length === 2) return isAdmin(uid) ? '' : 'admin-only';
     if (p[0] === 'acts' && p[2] === 'marks' && p.length === 4) return isAdmin(uid) ? '' : validMark(uid, p[1], p[3], data);
