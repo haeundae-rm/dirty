@@ -55,6 +55,12 @@ function make() {
         && (d.w === '' || isName(d.w)) && str(d.msg, 120) && isServer(d.at) && d.uid === uid ? '' : 'auto';
     }
     if (p[0] === 'sup' && p[2] === 'req' && p.length === 4) return isAdmin(uid) ? '' : 'req-maid-only';   // v23: 메이드 더티 요청 (레포트 앱만 씀)
+    if (p[0] === 'push' && p.length === 2) {   // v26: 🔔 푸시 토큰 — 본인 uid 문서만
+      const d = data || {}, ks = Object.keys(d);
+      if (op === 'delete') return isAdmin(uid) ? '' : 'admin-only';
+      return p[1] === uid && ks.every(k => ['app', 'name', 'token', 'at', 'ua', 'ver'].includes(k)) && d.app === 'dirty' && isName(d.name)
+        && typeof d.token === 'string' && d.token.length >= 20 && d.token.length <= 400 && isServer(d.at) && str(d.ua, 200) && str(d.ver, 20) ? '' : 'push';
+    }
     if (p[0] === 'sup_meta') return isAdmin(uid) ? '' : 'admin-only';
     if (p[0] === 'acts' && p.length === 2) return isAdmin(uid) ? '' : 'admin-only';
     if (p[0] === 'acts' && p[2] === 'marks' && p.length === 4) return isAdmin(uid) ? '' : validMark(uid, p[1], p[3], data);

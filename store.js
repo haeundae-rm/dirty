@@ -67,3 +67,10 @@ export async function getQuery(c, w) { const s = await getDocs(q(c, w)); return 
 export function set(path, data) { return setDoc(ref(path), enc(data)); }
 export function del(path) { return deleteDoc(ref(path)); }   // 활동판 시험 활동 완전 삭제 (11/8, 관리자만 · 체크 0건)
 export function add(c, data) { const r = doc(col(c)); return { id: r.id, done: setDoc(r, enc(data)) }; }
+// 🔔 푸시 알림 토큰 (2026-11-22) — 알림 허락된 휴대폰에서만. 메시징 모듈은 이때 처음 받음 (평소 화면은 무거워지지 않게)
+// VAPID 키를 안 주면 Firebase 기본 키를 씀. reg = 이 앱 sw.js 등록 (FCM 전용 서비스 워커 파일 없이 sw.js 가 직접 알림을 띄움)
+export async function pushToken(reg) {
+  const m = await import('https://www.gstatic.com/firebasejs/12.19.0/firebase-messaging.js');
+  if (!(await m.isSupported())) return '';
+  return m.getToken(m.getMessaging(app), { serviceWorkerRegistration: reg });
+}
