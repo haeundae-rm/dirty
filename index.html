@@ -52,6 +52,12 @@ button{font-family:inherit}
 .tab .dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;vertical-align:1px}
 .sync{font-size:11px;opacity:.75;margin-top:6px;min-height:15px}
 main{padding:16px 16px 48px;max-width:760px;margin:0 auto;display:flex;flex-direction:column;gap:12px}
+.pushc{background:#FFF4E8;border:1px solid #F2C79A;border-radius:12px;padding:12px 14px;margin:10px 0;display:flex;flex-direction:column;gap:6px}
+.pushc b{font-size:15px;color:#7A3A06}.pushc span{font-size:13px;color:var(--muted);line-height:1.5}.pushc em{font-size:13px;color:var(--warn);font-style:normal;font-weight:700}
+.pushc button{align-self:flex-start;background:#C25A00;color:#fff;border:0;border-radius:10px;padding:10px 16px;font-size:15px;font-weight:800}
+.pushc button[disabled]{opacity:.6}.pushc.off{background:var(--surface);border-color:var(--line)}.pushc.off b{color:inherit}
+.pushc.off button{background:var(--surface);color:inherit;border:1px solid var(--line)}
+.pushok{font-size:12px;color:var(--muted);margin:6px 2px 8px}
 .notice{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px 16px;color:var(--muted);font-size:14px}
 .notice strong{color:var(--ink)}
 
@@ -235,7 +241,7 @@ main{padding:16px 16px 48px;max-width:760px;margin:0 auto;display:flex;flex-dire
 @media (prefers-reduced-motion:reduce){.confetti{display:none}.thanks div{animation:none}}
 @media (rm-light-only){.stat .big,.sum .left .n,.floor{color:color-mix(in srgb,var(--wc) 55%,#fff)}}
 </style>
-<link rel="stylesheet" href="aplus.css?v=2026.11.21-4">
+<link rel="stylesheet" href="aplus.css?v=2026.11.22-1">
 </head>
 <body>
 <header class="top">
@@ -246,10 +252,10 @@ main{padding:16px 16px 48px;max-width:760px;margin:0 auto;display:flex;flex-dire
 </header>
 <main id="main"><div class="notice"><strong>오늘 배정을 불러오고 있어요.</strong></div></main>
 <div id="sheet"></div>
-<script src="server.js?v=2026.11.21-4"></script>
-<script src="act.js?v=2026.11.21-4"></script>
-<script src="autosup.js?v=2026.11.21-4"></script>
-<script src="shim.js?v=2026.11.21-4"></script>
+<script src="server.js?v=2026.11.22-1"></script>
+<script src="act.js?v=2026.11.22-1"></script>
+<script src="autosup.js?v=2026.11.22-1"></script>
+<script src="shim.js?v=2026.11.22-1"></script>
 <script>
 var plan = null, checks = {}, tab = null, dlg = null, busyChg = false, pver = 0;  // pver: 담당 변경 횟수. 변경 전에 출발한 응답의 담당 정보는 버림
 var openCards = {}, openSecs = {};
@@ -507,7 +513,7 @@ function handedNotes(w){
 function renderWorker(w){
   var s = wSum(w), allDone = s.rem === 0 && s.target > 0, a = attOf(w.name) || {};
   var etcNow = !w.maids.length && (a.task === '기타 업무' || (!a.task && w.etc));
-  var html = adminTok ? '' : attCard(w.name, w);
+  var html = adminTok ? '' : attCard(w.name, w) + (window.SupPush ? SupPush.view(w.name) : '');   // 🔔 더티 요청 푸시 알림 (2026-11-22)
   if (etcNow) {
     html += '<div class="notice"><strong>오늘은 기타 업무예요.</strong><br>더티를 도와야 할 때는 아래에서 메이드를 가져오세요.</div>';
   } else html += '<section class="sum'+(allDone ? ' alldone' : '')+'" style="--wc:'+esc(w.color)+'"><div class="who"><b>'+esc(w.name)+'</b> 님 · 담당 메이드 '+w.maids.length+'명</div>'+
@@ -921,6 +927,7 @@ document.addEventListener('click', function(e){
     return;
   }
   if (!plan) return;
+  if (t.closest('[data-push-on]')) { if (window.SupPush && me) SupPush.enable(me); return; }   // 🔔 알림 받기 (2026-11-22)
   var pk = t.closest('[data-pick]'); if (pk) { me = pk.getAttribute('data-pick'); lsSet('dust_me', me); openSecs = {}; render(); window.scrollTo(0, 0); return; }
   if (t.closest('[data-rename]')) { openDlg('rename'); return; }
   var atb = t.closest('[data-att]');
@@ -1637,9 +1644,9 @@ setInterval(function(){ if (document.visibilityState === 'visible') refresh(); }
 </script>
 
 <script>SupShim.post();</script>
-<script src="distcalc.js?v=2026.11.21-4"></script>
-<script src="dist.js?v=2026.11.21-4"></script>
-<script src="staff.js?v=2026.11.21-4"></script>
+<script src="distcalc.js?v=2026.11.22-1"></script>
+<script src="dist.js?v=2026.11.22-1"></script>
+<script src="staff.js?v=2026.11.22-1"></script>
 <script>
 /* 정비보조 명단 (2026-11-12): 직원 명단(staff, 직종 '정비보조')을 관리자가 관리 → 저장할 때 근무자 이름 고르기 목록(sup_meta/roster)도 맞춤
    재직·입사 진행 = 이름 목록에 넣음, 퇴사 = 이름 목록에서 뺌. 최근 근무했는데 명단에 없는 이름은 눌러서 추가 */
@@ -1742,6 +1749,6 @@ setInterval(function(){ if (document.visibilityState === 'visible') refresh(); }
   } catch (e) {}
 })();
 </script>
-<script type="module" src="boot.js?v=2026.11.21-4"></script>
+<script type="module" src="boot.js?v=2026.11.22-1"></script>
 </body>
 </html>

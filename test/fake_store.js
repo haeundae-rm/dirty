@@ -83,3 +83,5 @@ function reconnect() { Object.values(subs).forEach(s => { s.got = false; }); emi
 window.addEventListener('online', reconnect);
 window.__fake = { pending: () => pending.length, down: v => { window.__fakeDown = v; if (v) emitAll(); else reconnect(); } };
 setTimeout(flush, 50);
+// 🔔 푸시 토큰 (시험: window.__fakePushToken 값, 없으면 'fake-push-<uid>')
+export async function pushToken() { if (window.__fakePushFail) throw new Error(window.__fakePushFail); return window.__fakePushToken || ('fake-push-' + (user && user.uid)); }
