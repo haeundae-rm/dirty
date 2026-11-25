@@ -129,13 +129,17 @@ const openSec = async (p, sec, sel) => until(async () => { await p.evaluate(s =>
   ok(await until(async () => /5분째/.test(await txt(pK, 'section.maid.asked .dreq')) && !/처음/.test(await txt(pK, 'section.maid.asked .dreq')), 6000), '지난 요청 뒤에 방 체크(1201, 30분 전)가 있었으면 새 요청부터 셈 "5분째"');
 
   console.log('⑤ 11/25 📌 나중에: 꾹 누르기 → 표시 · 그냥 누르기 → 완료(📌 사라짐) · [📌 나중에 표시] 버튼');
-  const press = async (p, sel, ms) => { const bx = await p.locator(sel).first().boundingBox(); await p.mouse.move(bx.x + bx.width / 2, bx.y + bx.height / 2); await p.mouse.down(); await p.waitForTimeout(ms); await p.mouse.up(); };
+  const press = async (p, sel, ms) => { await p.locator(sel).first().scrollIntoViewIfNeeded(); await p.waitForTimeout(200); const bx = await p.locator(sel).first().boundingBox(); await p.mouse.move(bx.x + bx.width / 2, bx.y + bx.height / 2); await p.mouse.down(); await p.waitForTimeout(ms); await p.mouse.up(); };
   await press(pK, '.room[data-r="1202"]', 750);
   ok(await until(async () => (await pK.locator('.room.pin[data-r="1202"]').count()) === 1, 3000), '꾹 누르면 1202 📌');
   ok((await pK.locator('.room.on[data-r="1202"]').count()) === 0, '꾹 누른 건 완료로 안 침');
   ok(/📌 나중에 1실/.test(await txt(pK, '.pinc')), '카드 위 "📌 나중에 1실"');
   await pK.reload(); await until(async () => (await pK.locator('.room[data-r="1202"]').count()) === 1, 8000);
   ok((await pK.locator('.room.pin[data-r="1202"]').count()) === 1, '새로 고침해도 📌 남음 (이 휴대폰)');
+  await press(pK, '.room[data-r="1202"]', 750);
+  const unp = await until(async () => (await pK.locator('.room.pin[data-r="1202"]').count()) === 0, 3000); console.log('     1202:', await pK.locator('.room[data-r="1202"]').first().getAttribute('class'));
+  ok(unp && (await pK.locator('.room.on[data-r="1202"]').count()) === 0, '다시 꾹 누르면 📌 지워짐 (완료도 안 됨)');
+  await press(pK, '.room[data-r="1202"]', 750); await until(async () => (await pK.locator('.room.pin[data-r="1202"]').count()) === 1, 3000);
   await pK.click('.room[data-r="1202"]');
   ok(await until(async () => (await pK.locator('.room.on[data-r="1202"]').count()) === 1, 4000) && (await pK.locator('.room.pin[data-r="1202"]').count()) === 0, '한 번 누르면 완료 · 📌 사라짐');
   await pK.click('[data-pinmode="메이드A"]'); await pK.click('.room[data-r="1203"]');
