@@ -241,7 +241,7 @@ main{padding:16px 16px 48px;max-width:760px;margin:0 auto;display:flex;flex-dire
 @media (prefers-reduced-motion:reduce){.confetti{display:none}.thanks div{animation:none}}
 @media (rm-light-only){.stat .big,.sum .left .n,.floor{color:color-mix(in srgb,var(--wc) 55%,#fff)}}
 </style>
-<link rel="stylesheet" href="aplus.css?v=2026.11.25-1">
+<link rel="stylesheet" href="aplus.css?v=2026.11.25-2">
 </head>
 <body>
 <header class="top">
@@ -252,10 +252,10 @@ main{padding:16px 16px 48px;max-width:760px;margin:0 auto;display:flex;flex-dire
 </header>
 <main id="main"><div class="notice"><strong>오늘 배정을 불러오고 있어요.</strong></div></main>
 <div id="sheet"></div>
-<script src="server.js?v=2026.11.25-1"></script>
-<script src="act.js?v=2026.11.25-1"></script>
-<script src="autosup.js?v=2026.11.25-1"></script>
-<script src="shim.js?v=2026.11.25-1"></script>
+<script src="server.js?v=2026.11.25-2"></script>
+<script src="act.js?v=2026.11.25-2"></script>
+<script src="autosup.js?v=2026.11.25-2"></script>
+<script src="shim.js?v=2026.11.25-2"></script>
 <script>
 var plan = null, checks = {}, tab = null, dlg = null, busyChg = false, pver = 0;  // pver: 담당 변경 횟수. 변경 전에 출발한 응답의 담당 정보는 버림
 var openCards = {}, openSecs = {};
@@ -445,20 +445,32 @@ function reqOf(m){
   var q = L[0];
   // 11/25 소장님: 메이드가 먼저 할 방(긴급 요청한 방)을 골랐으면 그 방을 모두 할 때까지 요청 유지 · 못 고른 요청은 예전처럼 방 하나만 해도 꺼짐
   var pick = (q.rooms || []).filter(function(r){ return m.rooms.indexOf(r) >= 0; });
-  if (pick.length) { q.left = pick.filter(function(r){ return !checks[r]; }).length; q.pick = pick.length; return q.left ? q : null; }
+  if (pick.length) { q.left = pick.filter(function(r){ return !checks[r]; }).length; q.pick = pick.length; if (!q.left) return null; q.since = reqSince(q, m); return q; }
   var came = m.rooms.some(function(r){ var c = checks[r]; return c && Date.parse(c.at) > q.at; });
-  return came ? null : q;
+  if (came) return null; q.since = reqSince(q, m); return q;
 }
-function reqMins(q){ return Math.max(0, Math.floor((Date.now() - q.at) / 60000)); }
+// 11/25 소장님: '다시 알리기'를 눌러도 처음 요청한 시각 기준으로 줄 세우고 'N분째'도 그때부터 셈
+//   오늘 요청 시각들(hist + 지금)을 거꾸로 보며, 두 요청 사이에 그 메이드 방을 체크했으면 거기서 끊음 (그 전 요청은 이미 해결된 것)
+function reqSince(q, m){
+  var T = (q.hist || []).concat([q.at]).filter(function(t){ return t && t <= q.at; }).sort(function(a, b){ return a - b; }), start = q.at;
+  for (var i = T.length - 2; i >= 0; i--) {
+    var t0 = T[i], t1 = T[i + 1];
+    if (m.rooms.some(function(r){ var c = checks[r]; if (!c) return false; var a = Date.parse(c.at); return a > t0 && a <= t1; })) break;
+    start = t0;
+  }
+  return start;
+}
+function reqMins(q){ return Math.max(0, Math.floor((Date.now() - (q.since || q.at)) / 60000)); }
+function reqWhen(q){ var s = q.since || q.at; return s < q.at ? '처음 '+hm(new Date(s).toISOString())+' 요청 · '+hm(new Date(q.at).toISOString())+' 다시 알림' : hm(new Date(q.at).toISOString())+' 요청'; }
 function reqHtml(q){
-  if (q.pick && q.left < q.pick) return '<div class="dreq"><b>🔔 긴급 요청한 방이 '+q.left+'개 남았어요 · '+reqMins(q)+'분째</b><span>'+hm(new Date(q.at).toISOString())+' 요청'+(q.n > 1 ? ' · 오늘 '+q.n+'번째' : '')+' · 먼저 할 방 <b>'+esc(q.rooms.join(', '))+'</b></span></div>';
-  return '<div class="dreq"><b>🔔 더티 요청 · '+reqMins(q)+'분째 기다림</b><span>'+hm(new Date(q.at).toISOString())+' 요청'+(q.n > 1 ? ' · 오늘 '+q.n+'번째' : '')+
+  if (q.pick && q.left < q.pick) return '<div class="dreq"><b>🔔 긴급 요청한 방이 '+q.left+'개 남았어요 · '+reqMins(q)+'분째</b><span>'+reqWhen(q)+' · 먼저 할 방 <b>'+esc(q.rooms.join(', '))+'</b></span></div>';
+  return '<div class="dreq"><b>🔔 더티 요청 · '+reqMins(q)+'분째 기다림</b><span>'+reqWhen(q)+
     (q.rooms.length ? ' · 먼저 할 방 <b>'+esc(q.rooms.join(', '))+'</b>' : ' · 방은 안 골랐어요')+'</span></div>';
 }
 function reqList(){   // 지금 기다리는 요청 (오래된 순)
   var out = [];
   plan.workers.forEach(function(w){ w.maids.forEach(function(m){ var q = reqOf(m); if (q && !out.some(function(o){ return o.q === q; })) out.push({ q: q, m: m, w: w }); }); });
-  return out.sort(function(a, b){ return a.q.at - b.q.at; });
+  return out.sort(function(a, b){ return (a.q.since || a.q.at) - (b.q.since || b.q.at); });
 }
 function reqAdminHtml(){
   var L = reqList(); if (!L.length) return '';
@@ -527,7 +539,7 @@ function renderWorker(w){
   var notes = handedNotes(w);
   if (notes.length) html += '<div class="handed"><div><b>넘겨준 담당</b></div>'+notes.map(function(t){ return '<div>'+t+'</div>'; }).join('')+'</div>';
   if (!w.maids.length && !etcNow) html += '<div class="notice"><strong>아직 담당 메이드가 없어요.</strong><br>아래 "다른 정비보조 담당 넘겨받기"나 "더티 지원 없음"에서 가져오세요.</div>';
-  w.maids.map(function(m, i){ var q = reqOf(m); return { m: m, i: i, at: q ? q.at : Infinity }; })   // 🔔 더티 요청한 메이드를 맨 위로 (오래 기다린 순)
+  w.maids.map(function(m, i){ var q = reqOf(m); return { m: m, i: i, at: q ? (q.since || q.at) : Infinity }; })   // 🔔 더티 요청한 메이드를 맨 위로 (오래 기다린 순)
     .sort(function(a, b){ return (a.at - b.at) || (a.i - b.i); }).forEach(function(x){ html += maidCard(x.m, w); });
 
   var others = [];
@@ -1648,9 +1660,9 @@ setInterval(function(){ if (document.visibilityState === 'visible') refresh(); }
 </script>
 
 <script>SupShim.post();</script>
-<script src="distcalc.js?v=2026.11.25-1"></script>
-<script src="dist.js?v=2026.11.25-1"></script>
-<script src="staff.js?v=2026.11.25-1"></script>
+<script src="distcalc.js?v=2026.11.25-2"></script>
+<script src="dist.js?v=2026.11.25-2"></script>
+<script src="staff.js?v=2026.11.25-2"></script>
 <script>
 /* 정비보조 명단 (2026-11-12): 직원 명단(staff, 직종 '정비보조')을 관리자가 관리 → 저장할 때 근무자 이름 고르기 목록(sup_meta/roster)도 맞춤
    재직·입사 진행 = 이름 목록에 넣음, 퇴사 = 이름 목록에서 뺌. 최근 근무했는데 명단에 없는 이름은 눌러서 추가 */
@@ -1753,6 +1765,6 @@ setInterval(function(){ if (document.visibilityState === 'visible') refresh(); }
   } catch (e) {}
 })();
 </script>
-<script type="module" src="boot.js?v=2026.11.25-1"></script>
+<script type="module" src="boot.js?v=2026.11.25-2"></script>
 </body>
 </html>

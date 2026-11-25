@@ -2,7 +2,7 @@
 // 정비보조가 [알림 받기]를 한 번 누르면: 휴대폰 알림 허락 → sw.js 등록 → FCM 토큰 → push/{uid} {app:'dirty', name, token}
 // 서버 함수 dreqPush 가 메이드 더티 요청(sup/{날짜}/req/{메이드})이 새로 오면 담당 정비보조(ws) 이름과 같은 휴대폰에 보냄
 // 이름을 바꿔 고르거나 사흘이 지나면 앱을 열 때 저절로 다시 등록 (토큰 · 이름 · 3주 기준 '최근 사용' 갱신)
-const VER = '2026.11.25-1';
+const VER = '2026.11.25-2';
 const KEY = 'dust_push', AGAIN = 3 * 24 * 3600e3;
 
 export function initPush(store) {
