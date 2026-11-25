@@ -241,7 +241,7 @@ main{padding:16px 16px 48px;max-width:760px;margin:0 auto;display:flex;flex-dire
 @media (prefers-reduced-motion:reduce){.confetti{display:none}.thanks div{animation:none}}
 @media (rm-light-only){.stat .big,.sum .left .n,.floor{color:color-mix(in srgb,var(--wc) 55%,#fff)}}
 </style>
-<link rel="stylesheet" href="aplus.css?v=2026.11.22-1">
+<link rel="stylesheet" href="aplus.css?v=2026.11.25-1">
 </head>
 <body>
 <header class="top">
@@ -252,10 +252,10 @@ main{padding:16px 16px 48px;max-width:760px;margin:0 auto;display:flex;flex-dire
 </header>
 <main id="main"><div class="notice"><strong>오늘 배정을 불러오고 있어요.</strong></div></main>
 <div id="sheet"></div>
-<script src="server.js?v=2026.11.22-1"></script>
-<script src="act.js?v=2026.11.22-1"></script>
-<script src="autosup.js?v=2026.11.22-1"></script>
-<script src="shim.js?v=2026.11.22-1"></script>
+<script src="server.js?v=2026.11.25-1"></script>
+<script src="act.js?v=2026.11.25-1"></script>
+<script src="autosup.js?v=2026.11.25-1"></script>
+<script src="shim.js?v=2026.11.25-1"></script>
 <script>
 var plan = null, checks = {}, tab = null, dlg = null, busyChg = false, pver = 0;  // pver: 담당 변경 횟수. 변경 전에 출발한 응답의 담당 정보는 버림
 var openCards = {}, openSecs = {};
@@ -422,7 +422,7 @@ function maidCard(m, w){
   var cls = n === 0 ? 'idle' : over ? 'full over' : full ? 'full' : d > 0 ? 'prog' : 'idle';
   var style = ' style="--wc:'+esc(w.color)+'"', q = reqOf(m);
   m._want = q ? q.rooms : null;
-  if (full && !openCards[m.name]) {   // 할당량을 채운 카드는 한 줄로 접기
+  if (full && !openCards[m.name] && !q) {   // 할당량을 채운 카드는 한 줄로 접기 (11/25: 요청이 남아 있으면 펼쳐 둠)
     return '<section class="maid '+cls+'"'+style+'><button class="fold" data-fold="'+esc(m.name)+'"><span>✓</span><span class="nm">'+esc(m.name)+'</span><span class="floor">'+esc(m.floors)+'</span>'+
       (m.taken ? '<span class="badge">추가</span>' : '')+'<span class="r">'+(q ? '🔔 ' : '')+(over ? '완료 +'+(d - n) : '완료')+' · '+d+'/'+n+' ▾</span></button></section>';
   }
@@ -443,11 +443,15 @@ function reqOf(m){
   var L = (window.SupShim && SupShim.reqs ? SupShim.reqs() : []).filter(function(q){ return q.at && (q.names || []).indexOf(m.name) >= 0; });
   if (!L.length) return null;
   var q = L[0];
+  // 11/25 소장님: 메이드가 먼저 할 방(긴급 요청한 방)을 골랐으면 그 방을 모두 할 때까지 요청 유지 · 못 고른 요청은 예전처럼 방 하나만 해도 꺼짐
+  var pick = (q.rooms || []).filter(function(r){ return m.rooms.indexOf(r) >= 0; });
+  if (pick.length) { q.left = pick.filter(function(r){ return !checks[r]; }).length; q.pick = pick.length; return q.left ? q : null; }
   var came = m.rooms.some(function(r){ var c = checks[r]; return c && Date.parse(c.at) > q.at; });
   return came ? null : q;
 }
 function reqMins(q){ return Math.max(0, Math.floor((Date.now() - q.at) / 60000)); }
 function reqHtml(q){
+  if (q.pick && q.left < q.pick) return '<div class="dreq"><b>🔔 긴급 요청한 방이 '+q.left+'개 남았어요 · '+reqMins(q)+'분째</b><span>'+hm(new Date(q.at).toISOString())+' 요청'+(q.n > 1 ? ' · 오늘 '+q.n+'번째' : '')+' · 먼저 할 방 <b>'+esc(q.rooms.join(', '))+'</b></span></div>';
   return '<div class="dreq"><b>🔔 더티 요청 · '+reqMins(q)+'분째 기다림</b><span>'+hm(new Date(q.at).toISOString())+' 요청'+(q.n > 1 ? ' · 오늘 '+q.n+'번째' : '')+
     (q.rooms.length ? ' · 먼저 할 방 <b>'+esc(q.rooms.join(', '))+'</b>' : ' · 방은 안 골랐어요')+'</span></div>';
 }
@@ -459,7 +463,7 @@ function reqList(){   // 지금 기다리는 요청 (오래된 순)
 function reqAdminHtml(){
   var L = reqList(); if (!L.length) return '';
   return '<p class="sec">🔔 지금 더티 요청 '+L.length+'명</p><div class="card"><ul class="feed">'+L.map(function(x){
-    return '<li><time style="color:#C25A00;font-weight:800">'+reqMins(x.q)+'분</time><span><b>'+esc(x.m.name)+'</b> 님 ('+esc(x.m.floors)+') → '+esc(x.w.name)+' 님'+(x.q.rooms.length ? ' · 먼저 '+esc(x.q.rooms.join(', ')) : '')+'</span></li>';
+    return '<li><time style="color:#C25A00;font-weight:800">'+reqMins(x.q)+'분</time><span><b>'+esc(x.m.name)+'</b> 님 ('+esc(x.m.floors)+') → '+esc(x.w.name)+' 님'+(x.q.rooms.length ? ' · 먼저 '+esc(x.q.rooms.join(', ')) : '')+(x.q.pick && x.q.left < x.q.pick ? ' · <b style="color:#C25A00">긴급 요청한 방이 '+x.q.left+'개 남았어요</b>' : '')+'</span></li>';
   }).join('')+'</ul></div>';
 }
 var dqCtx = null;
@@ -1644,9 +1648,9 @@ setInterval(function(){ if (document.visibilityState === 'visible') refresh(); }
 </script>
 
 <script>SupShim.post();</script>
-<script src="distcalc.js?v=2026.11.22-1"></script>
-<script src="dist.js?v=2026.11.22-1"></script>
-<script src="staff.js?v=2026.11.22-1"></script>
+<script src="distcalc.js?v=2026.11.25-1"></script>
+<script src="dist.js?v=2026.11.25-1"></script>
+<script src="staff.js?v=2026.11.25-1"></script>
 <script>
 /* 정비보조 명단 (2026-11-12): 직원 명단(staff, 직종 '정비보조')을 관리자가 관리 → 저장할 때 근무자 이름 고르기 목록(sup_meta/roster)도 맞춤
    재직·입사 진행 = 이름 목록에 넣음, 퇴사 = 이름 목록에서 뺌. 최근 근무했는데 명단에 없는 이름은 눌러서 추가 */
@@ -1749,6 +1753,6 @@ setInterval(function(){ if (document.visibilityState === 'visible') refresh(); }
   } catch (e) {}
 })();
 </script>
-<script type="module" src="boot.js?v=2026.11.22-1"></script>
+<script type="module" src="boot.js?v=2026.11.25-1"></script>
 </body>
 </html>

@@ -88,7 +88,7 @@ const openSec = async (p, sec, sel) => until(async () => { await p.evaluate(s =>
   ok(order0[0] === '메이드A', '요청 전: 메이드A 가 위 (' + order0.join(',') + ')');
 
   console.log('② 메이드B 더티 요청 (12분 전, 먼저 1402)');
-  await db.serverWrite('sup/' + DAY + '/req/메이드B', { maid: '메이드B', names: ['메이드B'], ws: ['김정비'], rooms: ['1402'], at: T(12 * 60e3), n: 1, hist: [], why: 'left', left: 2, R: 2, dc: 0, uid: 'm2', ver: 't' });
+  await db.serverWrite('sup/' + DAY + '/req/메이드B', { maid: '메이드B', names: ['메이드B'], ws: ['김정비'], rooms: ['1402', '1403'], at: T(12 * 60e3), n: 1, hist: [], why: 'left', left: 2, R: 2, dc: 0, uid: 'm2', ver: 't' });
   ok(await until(async () => (await pK.locator('section.maid.asked').count()) === 1, 6000), '김정비: 메이드B 카드에 요청 표시');
   const order1 = await pK.locator('section.maid .nm').allInnerTexts();
   ok(order1[0] === '메이드B', '요청한 메이드B 가 맨 위로 (' + order1.join(',') + ')');
@@ -110,9 +110,16 @@ const openSec = async (p, sec, sel) => until(async () => { await p.evaluate(s =>
     await pM.screenshot({ path: path.join(process.env.SHOT, '5_정비보조앱_관리자_요청목록.png'), clip: bx, fullPage: true });
   }
 
-  console.log('③ 김정비가 메이드B 방(1401) 체크 → 요청 저절로 꺼짐');
+  console.log('③ 11/25: 긴급 요청한 방(1402·1403) — 다른 방 1401 → 그대로 · 1402 → 1개 남음 · 1403 → 꺼짐');
   await pK.click('.room[data-r="1401"]');
-  ok(await until(async () => (await pK.locator('section.maid.asked').count()) === 0, 6000), '요청 표시 꺼짐');
+  await sleep(1500);
+  ok((await pK.locator('section.maid.asked').count()) === 1 && /분째 기다림/.test(await txt(pK, 'section.maid.asked .dreq')), '긴급 요청한 방이 아닌 방만 하면 요청 그대로');
+  await pK.click('.room[data-r="1402"]');
+  ok(await until(async () => /긴급 요청한 방이 1개 남았어요/.test(await txt(pK, 'section.maid.asked .dreq')), 6000), '1402 하면 "긴급 요청한 방이 1개 남았어요"');
+  ok(await until(async () => /긴급 요청한 방이 1개 남았어요/.test(await txt(pM, '#main')), 8000), '관리자 목록에도 같은 말');
+  if (process.env.SHOT) { const c = pK.locator('section.maid.asked').first(); await c.scrollIntoViewIfNeeded(); await pK.waitForTimeout(400); await pK.screenshot({ path: path.join(process.env.SHOT, '6_긴급요청_1개남음.png') }); }
+  await pK.click('.room[data-r="1403"]');
+  ok(await until(async () => (await pK.locator('section.maid.asked').count()) === 0, 6000), '긴급 요청한 방을 다 하면 요청 표시 꺼짐');
   ok(await until(async () => !/지금 더티 요청/.test(await txt(pM, '#main')), 8000), '관리자 목록에서도 빠짐');
 
   const errs = [pK, pP, pM].flatMap(p => p.errors.map(e => p.label + ': ' + e));
