@@ -128,6 +128,25 @@ const openSec = async (p, sec, sel) => until(async () => { await p.evaluate(s =>
   await db.serverWrite('sup/' + DAY + '/req/메이드A', { maid: '메이드A', names: ['메이드A'], ws: ['김정비'], rooms: [], at: T(5 * 60e3), n: 2, hist: [T(40 * 60e3).__ts], why: 'noon', left: 3, R: 2, dc: 1, uid: 'm1', ver: 't' });
   ok(await until(async () => /5분째/.test(await txt(pK, 'section.maid.asked .dreq')) && !/처음/.test(await txt(pK, 'section.maid.asked .dreq')), 6000), '지난 요청 뒤에 방 체크(1201, 30분 전)가 있었으면 새 요청부터 셈 "5분째"');
 
+  console.log('⑤ 11/25 📌 나중에: 꾹 누르기 → 표시 · 그냥 누르기 → 완료(📌 사라짐) · [📌 나중에 표시] 버튼');
+  const press = async (p, sel, ms) => { const bx = await p.locator(sel).first().boundingBox(); await p.mouse.move(bx.x + bx.width / 2, bx.y + bx.height / 2); await p.mouse.down(); await p.waitForTimeout(ms); await p.mouse.up(); };
+  await press(pK, '.room[data-r="1202"]', 750);
+  ok(await until(async () => (await pK.locator('.room.pin[data-r="1202"]').count()) === 1, 3000), '꾹 누르면 1202 📌');
+  ok((await pK.locator('.room.on[data-r="1202"]').count()) === 0, '꾹 누른 건 완료로 안 침');
+  ok(/📌 나중에 1실/.test(await txt(pK, '.pinc')), '카드 위 "📌 나중에 1실"');
+  await pK.reload(); await until(async () => (await pK.locator('.room[data-r="1202"]').count()) === 1, 8000);
+  ok((await pK.locator('.room.pin[data-r="1202"]').count()) === 1, '새로 고침해도 📌 남음 (이 휴대폰)');
+  await pK.click('.room[data-r="1202"]');
+  ok(await until(async () => (await pK.locator('.room.on[data-r="1202"]').count()) === 1, 4000) && (await pK.locator('.room.pin[data-r="1202"]').count()) === 0, '한 번 누르면 완료 · 📌 사라짐');
+  await pK.click('[data-pinmode="메이드A"]'); await pK.click('.room[data-r="1203"]');
+  ok(await until(async () => (await pK.locator('.room.pin[data-r="1203"]').count()) === 1, 3000) && (await pK.locator('.room.on[data-r="1203"]').count()) === 0, '[📌 나중에 표시] 켜고 누르면 📌만');
+  if (process.env.SHOT) { await press(pK, '.room[data-r="1301"]', 750); await pK.waitForTimeout(500); const c = pK.locator('section.maid').filter({ hasText: '메이드A' }).first(); await c.scrollIntoViewIfNeeded(); await pK.screenshot({ path: path.join(process.env.SHOT, '7_나중에_표시.png') }); await press(pK, '.room[data-r="1301"]', 750); }
+  await pK.click('[data-pinmode="메이드A"]'); await pK.click('.room[data-r="1203"]');
+  const ok1203 = await until(async () => rows(db, x => x.tab === '체크' && String(x.row[2]).replace(/^'/, '') === '1203' && x.row[5] === '완료').length >= 1, 8000);
+  if (!ok1203) console.log('     1203 칸:', await pK.locator('.room[data-r="1203"]').first().getAttribute('class').catch(() => '없음'), '· 기록', JSON.stringify(rows(db, x => x.tab === '체크').map(x => x.row.slice(2, 6))));
+  ok(ok1203, '끄고 누르면 완료 (체크 기록)');
+  ok((await pP.locator('.room.pin').count()) === 0, '다른 정비보조 휴대폰엔 📌 안 보임');
+
   const errs = [pK, pP, pM].flatMap(p => p.errors.map(e => p.label + ': ' + e));
   ok(!errs.length, '화면 오류 없음' + (errs.length ? ' ' + errs.slice(0, 3).join(' | ') : ''));
   await browser.close();

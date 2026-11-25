@@ -71,3 +71,11 @@ body{font-variant-numeric:tabular-nums}
 .dqpop span{font-size:15px;font-weight:700}
 .dqpop i{font-style:normal;font-size:12px;opacity:.85;margin-top:2px}
 @keyframes dqin{from{transform:translateY(-120%)}}
+
+/* 📌 나중에 (2026-11-25) */
+.room{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
+.room.pin{border:2px dashed #C99A06 !important;background:#FFF8D6 !important;color:#6B5200 !important}
+.room.pin small{color:#8A6A00 !important;font-weight:900}
+.room.pin.want{border:3px solid #E8710A !important;background:#FFF0E0 !important;color:#8A3D00 !important}
+.pinc{display:inline-block;margin-left:6px;padding:2px 8px;border-radius:999px;background:#FFF3C4;color:#6B5200;font:800 12px var(--f-body)}
+.ghost.pinb.pinon{background:#FFF3C4;border-color:#C99A06;color:#6B5200}
