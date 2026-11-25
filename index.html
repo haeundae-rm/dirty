@@ -241,7 +241,7 @@ main{padding:16px 16px 48px;max-width:760px;margin:0 auto;display:flex;flex-dire
 @media (prefers-reduced-motion:reduce){.confetti{display:none}.thanks div{animation:none}}
 @media (rm-light-only){.stat .big,.sum .left .n,.floor{color:color-mix(in srgb,var(--wc) 55%,#fff)}}
 </style>
-<link rel="stylesheet" href="aplus.css?v=2026.11.25-2">
+<link rel="stylesheet" href="aplus.css?v=2026.11.25-3">
 </head>
 <body>
 <header class="top">
@@ -252,10 +252,10 @@ main{padding:16px 16px 48px;max-width:760px;margin:0 auto;display:flex;flex-dire
 </header>
 <main id="main"><div class="notice"><strong>오늘 배정을 불러오고 있어요.</strong></div></main>
 <div id="sheet"></div>
-<script src="server.js?v=2026.11.25-2"></script>
-<script src="act.js?v=2026.11.25-2"></script>
-<script src="autosup.js?v=2026.11.25-2"></script>
-<script src="shim.js?v=2026.11.25-2"></script>
+<script src="server.js?v=2026.11.25-3"></script>
+<script src="act.js?v=2026.11.25-3"></script>
+<script src="autosup.js?v=2026.11.25-3"></script>
+<script src="shim.js?v=2026.11.25-3"></script>
 <script>
 var plan = null, checks = {}, tab = null, dlg = null, busyChg = false, pver = 0;  // pver: 담당 변경 횟수. 변경 전에 출발한 응답의 담당 정보는 버림
 var openCards = {}, openSecs = {};
@@ -410,12 +410,21 @@ function attAdminHtml(){
     '<div class="rows">'+(rows || '<div><span style="color:var(--muted)">오늘 명단이 아직 없어요.</span></div>')+'</div>'+
     '<div class="acts" style="margin-top:10px"><button data-month="1">월 출역표 만들기</button></div></div>';
 }
+// 📌 나중에 (11/25 소장님): 메이드가 "1 · 4 · 12호 나중에 벗겨 주세요" 처럼 미리 말해 둔 방 — 종이 메모 대신
+//   객실을 꾹 누르면(0.5초) 📌 표시 · 다시 꾹 누르면 해제 · 그냥 누르면 지금처럼 완료(📌는 저절로 사라짐). 카드의 [📌 나중에 표시] 를 켜면 한 번 눌러도 표시
+//   이 휴대폰에만 남음 (그날 하루, 규칙 · 서버 저장 없음) · 완료 수 · 목표에는 안 들어감
+var PIN = { key: '', set: {} }, pinMode = {}, pinSkip = { r: '', until: 0 };
+function pinKey(){ return 'dust_pin_' + ((plan && plan.date) || ''); }
+function pins(){ var k = pinKey(); if (PIN.key !== k) { PIN.key = k; try { PIN.set = JSON.parse(lsGet(k) || '{}') || {}; } catch (e) { PIN.set = {}; } } return PIN.set; }
+function pinToggle(r){ var s = pins(); if (s[r]) delete s[r]; else s[r] = Date.now(); lsSet(pinKey(), JSON.stringify(s)); buzz(25); render(); }
+function pinCount(m){ var s = pins(); return m.rooms.filter(function(r){ return s[r] && !checks[r]; }).length; }
 function roomTile(r, m, viewer){
   var c = checks[r], isNew = m.added && m.added.indexOf(r) >= 0, other = c && c.worker && c.worker !== viewer;
   var sub = c ? hm(c.at) + (other ? ' ' + c.worker : '') : (isNew ? '추가' : '');
-  var want = !c && m._want && m._want.indexOf(r) >= 0;
+  var want = !c && m._want && m._want.indexOf(r) >= 0, pin = !c && !!pins()[r];
+  if (pin) sub = '📌 나중';
   if (want) sub = '먼저';
-  return '<button class="room'+(c ? ' on' : '')+(other ? ' other' : '')+(isNew ? ' new' : '')+(want ? ' want' : '')+'" data-r="'+esc(r)+'" data-m="'+esc(m.name)+'">'+esc(r)+(sub ? '<small>'+esc(sub)+'</small>' : '')+'</button>';
+  return '<button class="room'+(c ? ' on' : '')+(other ? ' other' : '')+(isNew ? ' new' : '')+(want ? ' want' : '')+(pin ? ' pin' : '')+'" data-r="'+esc(r)+'" data-m="'+esc(m.name)+'">'+esc(r)+(sub ? '<small>'+esc(sub)+'</small>' : '')+'</button>';
 }
 function maidCard(m, w){
   var d = doneOf(m), n = m.dirty, full = isFull(m), over = n > 0 && d > n;
@@ -427,14 +436,16 @@ function maidCard(m, w){
       (m.taken ? '<span class="badge">추가</span>' : '')+'<span class="r">'+(q ? '🔔 ' : '')+(over ? '완료 +'+(d - n) : '완료')+' · '+d+'/'+n+' ▾</span></button></section>';
   }
   var big = n === 0 ? '목표 0<small>실</small>' : over ? '완료 +'+(d - n) : full ? '완료 ✓' : (n - d)+'<small>실 남음</small>';
-  var h = '<section class="maid '+cls+(q ? ' asked' : '')+'"'+style+'><div class="maid-head"><span class="nm">'+esc(m.name)+'</span><span class="floor">'+esc(m.floors)+'</span>'+
+  var pc = pinCount(m);
+  var h = '<section class="maid '+cls+(q ? ' asked' : '')+'"'+style+'><div class="maid-head"><span class="nm">'+esc(m.name)+'</span><span class="floor">'+esc(m.floors)+'</span>'+(pc ? '<span class="pinc">📌 나중에 '+pc+'실</span>' : '')+
     (m.taken ? '<span class="badge">'+(autoTaken(m) ? '자동' : '추가')+'</span>' : '')+(full ? '<button class="unfold" data-fold="'+esc(m.name)+'">접기 ▴</button>' : '')+
     '<div class="stat"><span class="big">'+big+'</span><button class="qty" data-edit="'+esc(m.name)+'" title="지원 수량 수정">완료 '+d+' / 목표 '+n+' ✎</button></div></div>'+
     '<div class="pbar"><i style="width:'+(n ? Math.min(100, d / n * 100) : 0)+'%"></i></div>'+(q ? reqHtml(q) : '')+'<div class="rooms">';
   m.rooms.forEach(function(r){ h += roomTile(r, m, w.name); });
   var lastH = m.handoffs && m.handoffs.length ? m.handoffs[m.handoffs.length - 1] : null;
   var hint = (m.taken ? '가져온 담당 · ' : '') + (lastH ? lastH.from + ' 님에게서 넘겨받음 · ' : '') + '배정 객실 '+m.rooms.length+'실 중 지원한 객실을 체크';
-  h += '</div><div class="maid-foot"><p class="hint">'+esc(hint)+'</p><button class="ghost" data-edit="'+esc(m.name)+'">수량·객실 수정</button>'+
+  if (pinMode[m.name]) hint = '📌 표시 중 — 객실을 누르면 나중에 표시 · 다시 누르면 해제';
+  h += '</div><div class="maid-foot"><p class="hint">'+esc(hint)+'</p><button class="ghost pinb'+(pinMode[m.name] ? ' pinon' : '')+'" data-pinmode="'+esc(m.name)+'">'+(pinMode[m.name] ? '📌 표시 끝내기' : '📌 나중에 표시')+'</button><button class="ghost" data-edit="'+esc(m.name)+'">수량·객실 수정</button>'+
     (m.taken ? '<button class="ghost" data-release="'+esc(m.name)+'"'+(busyChg ? ' disabled' : '')+'>'+(busyChg === m.name ? '되돌리는 중…' : '지원 없음으로 되돌리기')+'</button>' : '')+'</div></section>';
   return h;
 }
@@ -962,14 +973,33 @@ document.addEventListener('click', function(e){
   var ed = t.closest('[data-edit]'); if (ed) { openDlg('edit', { maid: ed.getAttribute('data-edit') }); return; }
   if (t.closest('[data-addw]')) { openDlg('addw'); return; }
   var ew = t.closest('[data-endw]'); if (ew) { openDlg('endw', { worker: ew.getAttribute('data-endw') }); return; }
+  var pmb = t.closest('[data-pinmode]'); if (pmb) { var pn = pmb.getAttribute('data-pinmode'); pinMode[pn] = !pinMode[pn]; render(); return; }
   var b2 = t.closest('.room');
   if (b2 && tab !== '관리자') {
     var r = b2.getAttribute('data-r'), mm = b2.getAttribute('data-m'), c = checks[r];
+    if (pinSkip.r === r && Date.now() < pinSkip.until) { pinSkip.until = 0; return; }   // 📌 꾹 누른 그 방의 손 뗌은 완료로 치지 않음
+    if (pinMode[mm] && !adminTok) { if (!c) pinToggle(r); return; }
     if (adminTok) { openDlg('proxy', { room: r, maid: mm, owner: tab }); return; }   // 관리자: "○○ 님 대신 체크할까요?"
     if (c && c.worker && c.worker !== tab) { openDlg('uncheck', { room: r, maid: mm, maidOfRoom: mm }); return; }   // 남이 체크한 객실은 한 번 묻기
     tap(r, mm, tab);
   }
 });
+
+// 📌 꾹 누르기 (0.5초) → 나중에 표시/해제 — 정비보조 본인 화면만 (관리자 · 이미 완료한 방 제외)
+(function(){
+  var tm = null, x0 = 0, y0 = 0;
+  function stop(){ if (tm) { clearTimeout(tm); tm = null; } }
+  document.addEventListener('pointerdown', function(e){
+    var b = e.target.closest && e.target.closest('.room[data-r]'); stop();
+    if (!b || adminTok || tab === '관리자' || !b.closest('section.maid')) return;
+    var r = b.getAttribute('data-r'); if (checks[r]) return;
+    x0 = e.clientX; y0 = e.clientY;
+    tm = setTimeout(function(){ tm = null; pinSkip = { r: r, until: Date.now() + 1500 }; pinToggle(r); }, 500);
+  }, { passive: true });
+  document.addEventListener('pointermove', function(e){ if (tm && (Math.abs(e.clientX - x0) > 10 || Math.abs(e.clientY - y0) > 10)) stop(); }, { passive: true });
+  ['pointerup', 'pointercancel', 'scroll'].forEach(function(ev){ document.addEventListener(ev, stop, { passive: true, capture: ev === 'scroll' }); });
+  document.addEventListener('contextmenu', function(e){ if (e.target.closest && e.target.closest('section.maid .room')) e.preventDefault(); });
+})();
 
 // ---------- 불러오기
 function load(){
@@ -1660,9 +1690,9 @@ setInterval(function(){ if (document.visibilityState === 'visible') refresh(); }
 </script>
 
 <script>SupShim.post();</script>
-<script src="distcalc.js?v=2026.11.25-2"></script>
-<script src="dist.js?v=2026.11.25-2"></script>
-<script src="staff.js?v=2026.11.25-2"></script>
+<script src="distcalc.js?v=2026.11.25-3"></script>
+<script src="dist.js?v=2026.11.25-3"></script>
+<script src="staff.js?v=2026.11.25-3"></script>
 <script>
 /* 정비보조 명단 (2026-11-12): 직원 명단(staff, 직종 '정비보조')을 관리자가 관리 → 저장할 때 근무자 이름 고르기 목록(sup_meta/roster)도 맞춤
    재직·입사 진행 = 이름 목록에 넣음, 퇴사 = 이름 목록에서 뺌. 최근 근무했는데 명단에 없는 이름은 눌러서 추가 */
@@ -1765,6 +1795,6 @@ setInterval(function(){ if (document.visibilityState === 'visible') refresh(); }
   } catch (e) {}
 })();
 </script>
-<script type="module" src="boot.js?v=2026.11.25-2"></script>
+<script type="module" src="boot.js?v=2026.11.25-3"></script>
 </body>
 </html>
