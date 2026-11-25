@@ -122,6 +122,12 @@ const openSec = async (p, sec, sel) => until(async () => { await p.evaluate(s =>
   ok(await until(async () => (await pK.locator('section.maid.asked').count()) === 0, 6000), '긴급 요청한 방을 다 하면 요청 표시 꺼짐');
   ok(await until(async () => !/지금 더티 요청/.test(await txt(pM, '#main')), 8000), '관리자 목록에서도 빠짐');
 
+  console.log('④ 11/25: 다시 알리기 — 처음 요청 시각 기준 (사이에 그 메이드 방 체크가 없으면 이어서 셈)');
+  await db.serverWrite('sup/' + DAY + '/req/메이드A', { maid: '메이드A', names: ['메이드A'], ws: ['김정비'], rooms: [], at: T(5 * 60e3), n: 2, hist: [T(25 * 60e3).__ts], why: 'noon', left: 3, R: 2, dc: 1, uid: 'm1', ver: 't' });
+  ok(await until(async () => /25분째/.test(await txt(pK, 'section.maid.asked .dreq')) && /처음 .* 요청 · .* 다시 알림/.test(await txt(pK, 'section.maid.asked .dreq')), 6000), '25분 전 처음 요청 → 다시 알림 5분 전이어도 "25분째" · "처음 … 다시 알림"');
+  await db.serverWrite('sup/' + DAY + '/req/메이드A', { maid: '메이드A', names: ['메이드A'], ws: ['김정비'], rooms: [], at: T(5 * 60e3), n: 2, hist: [T(40 * 60e3).__ts], why: 'noon', left: 3, R: 2, dc: 1, uid: 'm1', ver: 't' });
+  ok(await until(async () => /5분째/.test(await txt(pK, 'section.maid.asked .dreq')) && !/처음/.test(await txt(pK, 'section.maid.asked .dreq')), 6000), '지난 요청 뒤에 방 체크(1201, 30분 전)가 있었으면 새 요청부터 셈 "5분째"');
+
   const errs = [pK, pP, pM].flatMap(p => p.errors.map(e => p.label + ': ' + e));
   ok(!errs.length, '화면 오류 없음' + (errs.length ? ' ' + errs.slice(0, 3).join(' | ') : ''));
   await browser.close();

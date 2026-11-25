@@ -8,7 +8,7 @@
 // 관리자 확인은 Firebase 로그인(소장·부소장 계정) + 보안 규칙. 화면의 adminTok 은 '관리자 모드' 표시용 값일 뿐
 (function () {
   'use strict';
-  var APP_VER = '2026.11.25-1';
+  var APP_VER = '2026.11.25-2';
   var TZ = 'Asia/Seoul';
   var API_URL = 'https://script.google.com/macros/s/AKfycbyPvhvScAcDfGqyxdK9pvr8vtewfjAkHsbRBiN04GCNbzE4HL_zZHODWPPb4xUHQb0LCw/exec';
   var ADMINS = { '소장': 'unieshaeundae+admin@gmail.com', '부소장': 'unieshaeundae+sub@gmail.com', '하우스키퍼': 'unieshaeundae+hk@gmail.com' };   // 하우스키퍼 = 야간 공용 계정 (2026-11-19, 관리자 화면 같음, 비밀번호 따로)
@@ -247,7 +247,7 @@
     S.subs.push(st.listenQuery('sup/' + S.day + '/rm', [], function (docs, m) { S.rm = docs; S.rmGot = !m.fromCache; changed(); }, function (e) { S.rmGot = false; console.warn('레포트 변경 읽기 실패 (규칙 v22 전?)', e); }));
     S.subs.push(st.listenQuery('sup/' + S.day + '/auto', [], function (docs, m) { var o = {}; docs.forEach(function (d) { o[d.id] = d.data; }); S.auto = o; S.autoGot = !m.fromCache; }, function () { S.autoGot = false; }));
     // 2026-11-21 🔔 메이드 더티 요청 (레포트 앱이 씀, 규칙 v23 전이면 읽기 거절 → 안 보임)
-    S.subs.push(st.listenQuery('sup/' + S.day + '/req', [], function (docs) { S.reqs = docs.map(function (d) { var x = d.data || {}; return { id: d.id, maid: x.maid, names: x.names || [x.maid], rooms: x.rooms || [], at: num(x.at), n: x.n || 1, why: x.why, ws: x.ws || [] }; }); try { refresh(); if (window.dreqPing) window.dreqPing(); } catch (e) {} }, function () { S.reqs = []; }));
+    S.subs.push(st.listenQuery('sup/' + S.day + '/req', [], function (docs) { S.reqs = docs.map(function (d) { var x = d.data || {}; return { id: d.id, maid: x.maid, names: x.names || [x.maid], rooms: x.rooms || [], at: num(x.at), n: x.n || 1, why: x.why, ws: x.ws || [], hist: (Array.isArray(x.hist) ? x.hist : []).map(num).filter(Boolean) }; }); try { refresh(); if (window.dreqPing) window.dreqPing(); } catch (e) {} }, function () { S.reqs = []; }));
     S.subs.push(st.listenDoc('sup_meta/names', function (d) { S.names = d; S.namesGot = true; changed(); }, function (e) { S.namesGot = true; subErr('명단', e); }));
     S.subs.push(st.listenDoc('sup_meta/relay', function (d) { S.relay = d; decorate(); }, function () {}));
     S.subs.push(st.listenDoc('sup_meta/roster', function (d) { S.roster = d || null; changed(); }, function () {}));
