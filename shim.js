@@ -8,7 +8,7 @@
 // 관리자 확인은 Firebase 로그인(소장·부소장 계정) + 보안 규칙. 화면의 adminTok 은 '관리자 모드' 표시용 값일 뿐
 (function () {
   'use strict';
-  var APP_VER = '2026.11.26-1';
+  var APP_VER = '2026.11.26-2';
   var TZ = 'Asia/Seoul';
   var API_URL = 'https://script.google.com/macros/s/AKfycbyPvhvScAcDfGqyxdK9pvr8vtewfjAkHsbRBiN04GCNbzE4HL_zZHODWPPb4xUHQb0LCw/exec';
   var ADMINS = { '소장': 'unieshaeundae+admin@gmail.com', '부소장': 'unieshaeundae+sub@gmail.com', '하우스키퍼': 'unieshaeundae+hk@gmail.com' };   // 하우스키퍼 = 야간 공용 계정 (2026-11-19, 관리자 화면 같음, 비밀번호 따로)
@@ -440,9 +440,15 @@
     // 휴대폰 오류 자동 기록
     window.addEventListener('error', function (e) { report('error', (e && e.message || '') + ' @' + (e && e.lineno || '')); });
     window.addEventListener('unhandledrejection', function (e) { report('promise', String(e && e.reason && (e.reason.message || e.reason) || '')); });
-    // 새 버전 확인 (5분마다, 화면 다시 볼 때)
-    setInterval(checkVer, 300000);
-    document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'visible') { checkVer(); if (S.ready && today() !== S.day) subscribe(); } });
+    // 새 버전 (11/26): 띠만 보여 주던 것 → 쉬는 순간 자동으로 새로 고침 (autoreload.js). 띠는 그대로
+    // 안 바꾸는 때: 창(dlg) 열림 · 담당 변경 저장 중 · 보내지 못한 입력(queue) 남음
+    if (window.AutoReload) window.AutoReload.start({
+      key: 'dirty', cur: APP_VER, url: 'version.json',
+      safe: function () { return !window.dlg && !window.busyChg && !window.sending && !(window.queue && window.queue.length) && !(document.getElementById('sheet') || {}).innerHTML
+        && !document.getElementById('dz') && !document.getElementById('sb') && !(document.getElementById('rs-pop') || {}).innerHTML && !/-lock\b/.test(document.body.className); },   // 더티 배분 · 명단 창
+      onNew: function () { checkVer(); }
+    });
+    document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'visible') { if (S.ready && today() !== S.day) subscribe(); } });
     // 날짜 바뀜 (서울 자정) → 새 날짜 구독
     setInterval(function () { if (S.store && S.user && today() !== S.day) subscribe(); }, 30000);
     if ('serviceWorker' in navigator && !/\/app\//.test(location.pathname)) navigator.serviceWorker.register('sw.js').catch(function () {});   // 홈 화면 앱(설치형)용
